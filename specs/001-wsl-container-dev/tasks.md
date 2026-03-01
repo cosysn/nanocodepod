@@ -182,14 +182,14 @@
 
 **Independent Test**: Create workspace with custom config
 
-- [ ] T053 [US13] Implement resource limits in internal/workspace/resources.go
-- [ ] T054 [US13] Support custom Dockerfile in devcon build
+- [X] T053 [US13] Implement resource limits in internal/workspace/resources.go
+- [X] T054 [US13] Support custom Dockerfile in devcon build
 
 ---
 
 ## Phase 15: Polish (收尾)
 
-- [ ] T055 Add integration tests for full workflow
+- [X] T055 Add integration tests for full workflow
 - [X] T056 Verify idempotency for all commands
 - [X] T057 Add test cases to docs/cases/
 - [X] T058 Update quickstart.md with final commands

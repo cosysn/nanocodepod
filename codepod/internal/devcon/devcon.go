@@ -34,6 +34,8 @@ type BuildOptions struct {
 	WorkspacePath string
 	ImageTag      string
 	RepositoryURL string
+	Dockerfile    string // Custom Dockerfile path
+	Context       string // Build context path
 }
 
 // Build builds a devcontainer image from .devcontainer.json
@@ -173,4 +175,58 @@ func (d *Devcon) GetDevcontainerConfig(workspacePath string) (string, error) {
 		return "", err
 	}
 	return string(data), nil
+}
+
+// BuildWithDockerfile builds a container using custom Dockerfile
+func (d *Devcon) BuildWithDockerfile(opts *BuildOptions) (string, error) {
+	if opts.Dockerfile == "" {
+		return "", fmt.Errorf("dockerfile path is required")
+	}
+
+	// Verify Dockerfile exists
+	if _, err := os.Stat(opts.Dockerfile); os.IsNotExist(err) {
+		return "", fmt.Errorf("dockerfile not found: %s", opts.Dockerfile)
+	}
+
+	// Determine build context
+	context := opts.WorkspacePath
+	if opts.Context != "" {
+		context = opts.Context
+	}
+
+	// Build using docker build
+	cmd := exec.Command("docker", "build",
+		"-t", opts.ImageTag,
+		"-f", opts.Dockerfile,
+		context,
+	)
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("docker build failed: %w", err)
+	}
+
+	return opts.ImageTag, nil
+}
+
+// HasDockerfile checks if a custom Dockerfile exists
+func (d *Devcon) HasDockerfile(workspacePath string) bool {
+	dockerfilePath := filepath.Join(workspacePath, "Dockerfile")
+	_, err := os.Stat(dockerfilePath)
+	return err == nil
+}
+
+// GetDockerfilePath returns the path to Dockerfile
+func (d *Devcon) GetDockerfilePath(workspacePath string) string {
+	return filepath.Join(workspacePath, "Dockerfile")
+}
+
+// HasDevfile checks if a devfile exists
+func (d *Devcon) HasDevfile(workspacePath string) bool {
+	devfilePath := filepath.Join(workspacePath, "devfile.yaml")
+	_, err := os.Stat(devfilePath)
+	return err == nil
 }
