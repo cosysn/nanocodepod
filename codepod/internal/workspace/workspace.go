@@ -96,7 +96,7 @@ func (m *Manager) Create(name string, opts *CreateOptions) (*types.Workspace, er
 
 	// Create Docker container
 	containerConfig := &docker.ContainerConfig{
-		Name:    fmt.Sprintf("codepod-%s", name),
+		Name:    GetContainerName(name),
 		Image:   opts.Image,
 		Cmd:     []string{"sleep", "infinity"},
 		Env:     []string{},

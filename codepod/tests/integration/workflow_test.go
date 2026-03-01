@@ -1,7 +1,6 @@
 package integration
 
 import (
-	"os"
 	"testing"
 
 	"github.com/codepod-io/codepod/internal/config"
@@ -11,7 +10,7 @@ import (
 // TestFullWorkflow tests the complete workspace lifecycle
 func TestFullWorkflow(t *testing.T) {
 	// Setup - ensure clean state
-	testName := "test-workflow-" + string(rune(os.Getpid()))
+	testName := "testworkflow"
 	cleanupTestWorkspace(testName)
 	defer cleanupTestWorkspace(testName)
 
