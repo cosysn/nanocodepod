@@ -17,22 +17,22 @@
 
 ## Phase 1: Setup (项目初始化)
 
-- [ ] T001 Initialize Go project with go.mod
-- [ ] T002 [P] Setup project directory structure per plan.md
-- [ ] T003 Install dependencies: cobra, bubbletea, docker/client, yaml
+- [X] T001 Initialize Go project with go.mod
+- [X] T002 [P] Setup project directory structure per plan.md
+- [X] T003 Install dependencies: cobra, bubbletea, docker/client, yaml
 
 ---
 
 ## Phase 2: Foundational (共享基础设施)
 
-- [ ] T004 Create internal/types package with Workspace, Config, Agent structs
-- [ ] T005 [P] Create internal/types/workspace.go with Workspace model
-- [ ] T006 [P] Create internal/types/config.go with Config model
-- [ ] T007 Create internal/config package for config load/save
-- [ ] T008 Create internal/wsl package for WSL command execution
-- [ ] T009 Create internal/docker package for Docker operations
-- [ ] T010 Create internal/storage package for persistent storage
-- [ ] T011 Create internal/port package for port allocation
+- [X] T004 Create internal/types package with Workspace, Config, Agent structs
+- [X] T005 [P] Create internal/types/workspace.go with Workspace model
+- [X] T006 [P] Create internal/types/config.go with Config model
+- [X] T007 Create internal/config package for config load/save
+- [X] T008 Create internal/wsl package for WSL command execution
+- [X] T009 Create internal/docker package for Docker operations
+- [X] T010 Create internal/storage package for persistent storage
+- [X] T011 Create internal/port package for port allocation
 
 ---
 
@@ -42,9 +42,9 @@
 
 **Independent Test**: Check ~/.codepod/ directory created with proper structure
 
-- [ ] T012 [US2] Implement config initialization in internal/config/init.go
-- [ ] T013 [US2] Create ~/.codepod directory structure on init
-- [ ] T014 [US2] Implement workspace config save/load in internal/config/workspace.go
+- [X] T012 [US2] Implement config initialization in internal/config/init.go
+- [X] T013 [US2] Create ~/.codepod directory structure on init
+- [X] T014 [US2] Implement workspace config save/load in internal/config/workspace.go
 - [ ] T015 [US2] Write test cases for config storage in tests/config/
 
 ---
@@ -55,10 +55,10 @@
 
 **Independent Test**: Run `codepod config set/get/list` and verify
 
-- [ ] T016 [US3] Create cmd/config.go with cobra subcommands
-- [ ] T017 [US3] Implement config set command in cmd/config_set.go
-- [ ] T018 [US3] Implement config get command in cmd/config_get.go
-- [ ] T019 [US3] Implement config list command in cmd/config_list.go
+- [X] T016 [US3] Create cmd/config.go with cobra subcommands
+- [X] T017 [US3] Implement config set command in cmd/config_set.go
+- [X] T018 [US3] Implement config get command in cmd/config_get.go
+- [X] T019 [US3] Implement config list command in cmd/config_list.go
 
 ---
 
@@ -68,9 +68,9 @@
 
 **Independent Test**: Run commands and see TUI output
 
-- [ ] T020 [US1] Create internal/tui package with bubbletea components
-- [ ] T021 [US1] Implement progress display for long operations
-- [ ] T022 [US1] Implement error display with solutions
+- [X] T020 [US1] Create internal/tui package with bubbletea components
+- [X] T021 [US1] Implement progress display for long operations
+- [X] T022 [US1] Implement error display with solutions
 - [ ] T023 [US1] Implement help message display
 
 ---
@@ -81,10 +81,10 @@
 
 **Independent Test**: Run build and verify image created
 
-- [ ] T024 [US9] Create internal/devcon package for devcon integration
-- [ ] T025 [US9] Implement devcon injection to WSL
-- [ ] T026 [US9] Implement image build using devcon
-- [ ] T027 [US9] Stream build output to TUI
+- [X] T024 [US9] Create internal/devcon package for devcon integration
+- [X] T025 [US9] Implement devcon injection to WSL
+- [X] T026 [US9] Implement image build using devcon
+- [X] T027 [US9] Stream build output to TUI
 
 ---
 
@@ -94,9 +94,9 @@
 
 **Independent Test**: Create multiple workspaces, verify no port conflicts
 
-- [ ] T028 [US10] Implement port pool management in internal/port/pool.go
-- [ ] T029 [US10] Implement port allocation in internal/port/allocate.go
-- [ ] T030 [US10] Implement port release in internal/port/release.go
+- [X] T028 [US10] Implement port pool management in internal/port/pool.go
+- [X] T029 [US10] Implement port allocation in internal/port/allocate.go
+- [X] T030 [US10] Implement port release in internal/port/release.go
 
 ---
 
@@ -106,9 +106,9 @@
 
 **Independent Test**: Delete and recreate container, verify code persists
 
-- [ ] T031 [US11] Implement storage directory creation in internal/storage/create.go
-- [ ] T032 [US11] Implement volume mapping for Docker in internal/storage/mount.go
-- [ ] T033 [US11] Implement storage cleanup on delete in internal/storage/cleanup.go
+- [X] T031 [US11] Implement storage directory creation in internal/storage/create.go
+- [X] T032 [US11] Implement volume mapping for Docker in internal/storage/mount.go
+- [X] T033 [US11] Implement storage cleanup on delete in internal/storage/cleanup.go
 
 ---
 
@@ -118,11 +118,11 @@
 
 **Independent Test**: SSH connect to container, run git commands, check monitor
 
-- [ ] T034 [US8] Create agent/ program structure
-- [ ] T035 [US8] Implement SSH server in agent/ssh/server.go
-- [ ] T036 [US8] Implement Git forward in agent/git/forward.go
-- [ ] T037 [US8] Implement monitor in agent/monitor/stats.go
-- [ ] T038 [US8] Implement agent injection to container
+- [X] T034 [US8] Create agent/ program structure
+- [X] T035 [US8] Implement SSH server in agent/ssh/server.go
+- [X] T036 [US8] Implement Git forward in agent/git/forward.go
+- [X] T037 [US8] Implement monitor in agent/monitor/stats.go
+- [X] T038 [US8] Implement agent injection to container
 
 ---
 
@@ -132,9 +132,9 @@
 
 **Independent Test**: Run `codepod up` and verify container running
 
-- [ ] T039 [US4] Create cmd/up.go with create and start logic
-- [ ] T040 [US4] Create cmd/create.go with idempotent create
-- [ ] T041 [US4] Implement workspace creation flow in internal/workspace/create.go
+- [X] T039 [US4] Create cmd/up.go with create and start logic
+- [X] T040 [US4] Create cmd/create.go with idempotent create
+- [X] T041 [US4] Implement workspace creation flow in internal/workspace/create.go
 
 ---
 
@@ -144,10 +144,10 @@
 
 **Independent Test**: Run list/start/stop/delete commands
 
-- [ ] T042 [US5] Create cmd/list.go for workspace listing
-- [ ] T043 [US5] Create cmd/start.go for workspace start
-- [ ] T044 [US5] Create cmd/stop.go for workspace stop
-- [ ] T045 [US5] Create cmd/delete.go for workspace deletion
+- [X] T042 [US5] Create cmd/list.go for workspace listing
+- [X] T043 [US5] Create cmd/start.go for workspace start
+- [X] T044 [US5] Create cmd/stop.go for workspace stop
+- [X] T045 [US5] Create cmd/delete.go for workspace deletion
 
 ---
 
@@ -157,10 +157,10 @@
 
 **Independent Test**: Run `codepod connect` and verify IDE opens
 
-- [ ] T046 [US6] Create cmd/connect.go
-- [ ] T047 [US6] Implement IDE launch in internal/ide/launch.go
-- [ ] T048 [US6] Support VS Code remote connect
-- [ ] T049 [US6] Support JetBrains IDE connect
+- [X] T046 [US6] Create cmd/connect.go
+- [X] T047 [US6] Implement IDE launch in internal/ide/launch.go
+- [X] T048 [US6] Support VS Code remote connect
+- [X] T049 [US6] Support JetBrains IDE connect
 
 ---
 
@@ -170,9 +170,9 @@
 
 **Independent Test**: Create workspace with all associations
 
-- [ ] T050 [US7] Implement workspace domain config in internal/workspace/domain.go
-- [ ] T051 [US7] Implement SSH config generation in internal/workspace/ssh_config.go
-- [ ] T052 [US7] Implement /etc/hosts update for domain
+- [X] T050 [US7] Implement workspace domain config in internal/workspace/domain.go
+- [X] T051 [US7] Implement SSH config generation in internal/workspace/ssh_config.go
+- [X] T052 [US7] Implement /etc/hosts update for domain
 
 ---
 
@@ -190,10 +190,10 @@
 ## Phase 15: Polish (收尾)
 
 - [ ] T055 Add integration tests for full workflow
-- [ ] T056 Verify idempotency for all commands
+- [X] T056 Verify idempotency for all commands
 - [ ] T057 Add test cases to docs/cases/
 - [ ] T058 Update quickstart.md with final commands
-- [ ] T059 Build and test codepod binary
+- [X] T059 Build and test codepod binary
 
 ---
 
