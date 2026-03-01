@@ -38,6 +38,11 @@
 [PRINCIPLE_7_DESCRIPTION]
 <!-- Example: Unit test coverage must be at least 80%; Coverage measured by automated tools -->
 
+### [PRINCIPLE_8_NAME]
+<!-- Example: VIII. Test Case Documentation -->
+[PRINCIPLE_8_DESCRIPTION]
+<!-- Example: All test cases must be documented in docs/cases with ID, title, steps, expected results; All cases must be automated; Evaluate coverage before commit -->
+
 ## [SECTION_2_NAME]
 <!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
 
