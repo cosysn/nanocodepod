@@ -1,3 +1,25 @@
 # Speckit - Feature development workflow
 # Do not commit intermediate state files
 .specify/memory/
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+codepod/codepod
+agent
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
