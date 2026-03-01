@@ -164,7 +164,43 @@
 
 ---
 
-### User Story 10 - 自定义开发环境 (Priority: P2)
+### User Story 10 - 端口分配管理 (Priority: P1)
+
+系统需要为每个Workspace自动分配唯一端口，避免多个容器监听同一端口导致冲突。
+
+**Why this priority**: 多个容器共存时，端口冲突是常见问题，需要自动管理。
+
+**Independent Test**: 可以通过创建多个Workspace并验证端口不冲突来独立测试。
+
+**Acceptance Scenarios**:
+
+1. **Given** 用户创建第一个Workspace，**When** 系统分配端口，**Then** 从端口池中分配一个可用端口
+2. **Given** 用户创建多个Workspace，**When** 系统分配端口，**Then** 每个Workspace分配不同的端口，无冲突
+3. **Given** 某个Workspace被删除，**When** 端口释放，**Then** 的端口回到释放可用端口池
+4. **Given** 用户指定特定端口，**When** 端口可用，**Then** 使用用户指定的端口
+5. **Given** 用户指定特定端口，**When** 端口已被占用，**Then** 提示端口已被占用，建议可用端口
+
+---
+
+### User Story 11 - 持久化存储 (Priority: P1)
+
+系统需要为每个Workspace在WSL中分配持久化存储空间，并映射给容器，确保代码数据不会因容器重建而丢失。
+
+**Why this priority**: 代码是开发者的核心资产，必须确保持久化存储，防止数据丢失。
+
+**Independent Test**: 可以通过创建Workspace、重建容器、验证代码仍然存在来独立测试。
+
+**Acceptance Scenarios**:
+
+1. **Given** 用户创建Workspace，**When** 系统分配存储，**Then** 在WSL的持久化目录中创建Workspace专用目录
+2. **Given** Workspace存储已分配，**When** 创建容器，**Then** 将存储目录映射到容器内（如 -v /home/ubuntu/workspaces/myproject:/workspace）
+3. **Given** 容器被删除并重建，**When** 重新挂载存储，**Then** 代码数据完整保留
+4. **Given** Workspace被删除，**When** 用户确认删除，**Then** 存储目录被清理（可选：是否保留数据）
+5. **Given** 存储空间不足，**When** 创建Workspace，**Then** 提示存储空间不足并建议清理
+
+---
+
+### User Story 13 - 自定义开发环境 (Priority: P2)
 
 用户需要能够自定义开发环境的配置，如选择编程语言、工具版本、资源限制等。
 
@@ -230,6 +266,14 @@
 - **FR-034**: Agent MUST 提供SSH Server功能（不依赖sshd）
 - **FR-035**: Agent MUST 提供Git Forward代理功能
 - **FR-036**: Agent MUST 提供容器监控功能（CPU、内存、网络）
+- **FR-037**: 系统 MUST 为每个Workspace自动分配唯一端口
+- **FR-038**: 系统 MUST 支持端口池管理（分配和释放端口）
+- **FR-039**: 系统 MUST 支持用户指定端口（当端口可用时）
+- **FR-040**: 系统 MUST 在端口被占用时提示用户并建议可用端口
+- **FR-041**: 系统 MUST 为每个Workspace在WSL中分配持久化存储目录
+- **FR-042**: 系统 MUST 将WSL存储目录映射到容器内（如 /workspace）
+- **FR-043**: 系统 MUST 确保容器重建后代码数据持久化保留
+- **FR-044**: 系统 MUST 支持在Workspace删除时清理存储目录
 
 ### Key Entities
 
@@ -243,6 +287,8 @@
 - **域名配置**: Workspace的访问域名和DNS配置
 - **SSH配置**: 连接Workspace所需的SSH密钥和配置
 - **Agent**: 注入到容器的轻量级服务进程，提供SSH Server、Git Forward、监控功能
+- **端口池**: 系统管理的可用端口池，用于自动分配唯一端口给Workspace
+- **存储卷**: WSL中的持久化存储目录，映射给容器存储代码
 
 ## Success Criteria *(mandatory)*
 
