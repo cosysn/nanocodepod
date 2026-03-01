@@ -45,7 +45,7 @@
 - [X] T012 [US2] Implement config initialization in internal/config/init.go
 - [X] T013 [US2] Create ~/.codepod directory structure on init
 - [X] T014 [US2] Implement workspace config save/load in internal/config/workspace.go
-- [ ] T015 [US2] Write test cases for config storage in tests/config/
+- [X] T015 [US2] Write test cases for config storage in tests/config/
 
 ---
 
@@ -71,7 +71,7 @@
 - [X] T020 [US1] Create internal/tui package with bubbletea components
 - [X] T021 [US1] Implement progress display for long operations
 - [X] T022 [US1] Implement error display with solutions
-- [ ] T023 [US1] Implement help message display
+- [X] T023 [US1] Implement help message display
 
 ---
 
@@ -191,8 +191,8 @@
 
 - [ ] T055 Add integration tests for full workflow
 - [X] T056 Verify idempotency for all commands
-- [ ] T057 Add test cases to docs/cases/
-- [ ] T058 Update quickstart.md with final commands
+- [X] T057 Add test cases to docs/cases/
+- [X] T058 Update quickstart.md with final commands
 - [X] T059 Build and test codepod binary
 
 ---
