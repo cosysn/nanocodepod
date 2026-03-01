@@ -87,7 +87,7 @@ func (d *Devcon) getBuildCommand(opts *BuildOptions) ([]string, error) {
 		}
 
 		return []string{
-			"wsl.exe", "-d", d.wsl.Distribution, "--",
+			"wsl.exe", "-d", d.wsl.GetDistribution(), "--",
 			"bash", "-c",
 			fmt.Sprintf("%s build %s --image-tag %s", wslDevconPath, opts.WorkspacePath, opts.ImageTag),
 		}, nil
@@ -106,7 +106,7 @@ func (d *Devcon) getUpCommand(opts *BuildOptions) ([]string, error) {
 		}
 
 		return []string{
-			"wsl.exe", "-d", d.wsl.Distribution, "--",
+			"wsl.exe", "-d", d.wsl.GetDistribution(), "--",
 			"bash", "-c",
 			fmt.Sprintf("%s up %s", wslDevconPath, opts.WorkspacePath),
 		}, nil

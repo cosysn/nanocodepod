@@ -19,6 +19,11 @@ func New(distribution string) *WSL {
 	}
 }
 
+// GetDistribution returns the WSL distribution name
+func (w *WSL) GetDistribution() string {
+	return w.distribution
+}
+
 // RunCommand executes a command in WSL and returns the output
 func (w *WSL) RunCommand(cmd string) (string, error) {
 	args := []string{"-d", w.distribution, "--", "bash", "-c", cmd}
