@@ -43,6 +43,11 @@
 [PRINCIPLE_8_DESCRIPTION]
 <!-- Example: All test cases must be documented in docs/cases with ID, title, steps, expected results; All cases must be automated; Evaluate coverage before commit -->
 
+### [PRINCIPLE_9_NAME]
+<!-- Example: IX. Test Failure Analysis -->
+[PRINCIPLE_9_DESCRIPTION]
+<!-- Example: When tests fail, analyze root cause; If code has bug, fix bug; If test is wrong, fix test; Never modify test just to make it pass -->
+
 ## [SECTION_2_NAME]
 <!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
 
