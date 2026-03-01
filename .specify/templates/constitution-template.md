@@ -48,6 +48,11 @@
 [PRINCIPLE_9_DESCRIPTION]
 <!-- Example: When tests fail, analyze root cause; If code has bug, fix bug; If test is wrong, fix test; Never modify test just to make it pass -->
 
+### [PRINCIPLE_10_NAME]
+<!-- Example: X. Bug Tracking -->
+[PRINCIPLE_10_DESCRIPTION]
+<!-- Example: All bugs must be documented in docs/bugs.md with bug ID,现象,原因,发现时间,修复状态,修复时间,修复方案 -->
+
 ## [SECTION_2_NAME]
 <!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
 
