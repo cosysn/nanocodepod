@@ -72,7 +72,9 @@
 
 1. **Given** 用户已安装WSL2和Docker Desktop，**When** 用户执行创建环境命令，**Then** 系统在WSL中创建并启动开发容器
 2. **Given** 用户首次使用，**When** 执行创建命令，**Then** 系统自动配置必要的网络和存储卷
-3. **Given** 用户已有开发环境，**When** 执行创建命令，**Then** 系统提示环境已存在或询问是否重建
+3. **Given** 用户已有开发环境，**When** 执行创建命令，**Then** 系统支持幂等操作（重新执行不报错，自动跳过已完成的步骤）
+4. **Given** 用户执行 up 命令，**When** 环境已存在且未启动，**Then** 自动启动环境并打开IDE
+5. **Given** 用户执行 up 命令，**When** 环境已存在且已启动，**Then** 自动打开IDE连接到现有环境
 
 ---
 
@@ -106,6 +108,8 @@
 1. **Given** 环境处于运行状态，**When** 用户执行连接命令，**Then** 打开一个连接到容器内的Shell会话
 2. **Given** 容器内运行着开发服务（如HTTP服务器），**When** 用户请求访问服务，**Then** 请求被正确转发到容器内的服务端口
 3. **Given** 用户使用VS Code，**When** 用户请求连接，**Then** 系统提供Remote-WSL或SSH连接配置
+4. **Given** Workspace配置了IDE，**When** 执行 codepod up 或 codepod connect，**Then** 自动启动IDE并连接到开发容器
+5. **Given** 用户指定IDE类型（如vscode、jetbrains），**When** 启动时，**Then** 自动打开对应的IDE并连接到容器
 
 ---
 
@@ -245,6 +249,7 @@
 - **FR-013**: 系统 MUST 支持查看当前配置
 - **FR-014**: 系统 MUST 支持重置配置到默认值
 - **FR-015**: 系统 MUST 提供命令行工具用于环境管理
+- **FR-015a**: 系统 MUST 支持幂等操作（idempotency），重复执行不报错
 - **FR-016**: 系统 MUST 支持在WSL2中创建和管理Docker容器
 - **FR-017**: 系统 MUST 支持将devcon工具注入到WSL
 - **FR-018**: 系统 MUST 支持基于.devcontainer.json配置构建开发容器镜像
@@ -258,6 +263,9 @@
 - **FR-026**: 系统 MUST 支持创建和管理Workspace
 - **FR-027**: 系统 MUST 支持Workspace关联代码仓（Git仓库URL）
 - **FR-028**: 系统 MUST 支持Workspace关联IDE配置（VS Code、JetBrains等）
+- **FR-028a**: 系统 MUST 在Workspace启动时自动打开IDE并连接到开发容器
+- **FR-028b**: 系统 MUST 支持VS Code远程连接
+- **FR-028c**: 系统 MUST 支持JetBrains系列IDE远程连接（IntelliJ, GoLand, PyCharm等）
 - **FR-029**: 系统 MUST 支持Workspace关联开发容器
 - **FR-030**: 系统 MUST 支持Workspace配置访问域名（格式：workspace_name.codepod）
 - **FR-031**: 系统 MUST 支持在SSH config中配置域名条目

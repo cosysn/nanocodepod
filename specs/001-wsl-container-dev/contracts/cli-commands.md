@@ -179,7 +179,7 @@ codepod delete <name> [--force]
 
 ## 8. connect 命令
 
-**用途**: 连接Workspace
+**用途**: 连接Workspace，自动启动IDE
 
 ```bash
 codepod connect <name> [--ide <type>]
@@ -191,9 +191,44 @@ codepod connect <name> [--ide <type>]
 | name | string | 是 | Workspace名称 |
 | --ide | string | 否 | IDE类型 (默认: 配置中的IDE) |
 
+**说明**:
+- 连接后自动启动配置的IDE并连接到开发容器
+- 支持的IDE: vscode, intellij-idea, goland, pycharm, webstorm
+
+**示例**:
+```bash
+# 自动打开IDE并连接
+codepod connect myproject
+
+# 指定IDE类型
+codepod connect myproject --ide vscode
+codepod connect myproject --ide goland
+```
+
 ---
 
-## 9. help 命令
+## 9. up 命令 (含IDE启动)
+
+**用途**: 创建并启动Workspace，自动打开IDE
+
+```bash
+codepod up <name> [--repo <url>] [--ide <type>] [--path <dir>]
+```
+
+**说明**:
+- 创建Workspace后自动启动
+- 启动后自动打开配置的IDE并连接到开发容器
+- 等同于: codepod create + codepod start + codepod connect
+
+**示例**:
+```bash
+# 创建并启动，自动打开VS Code
+codepod up myproject --repo https://github.com/user/repo --ide vscode
+```
+
+---
+
+## 10. help 命令
 
 **用途**: 显示帮助
 

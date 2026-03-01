@@ -59,21 +59,25 @@ codepod config set wsl.docker-host tcp://localhost:2375
 codepod config list
 ```
 
-### 3. 创建Workspace
+### 3. 创建Workspace (自动打开IDE)
 
 ```bash
-# 从Git仓库创建并启动 (推荐)
-codepod up myproject --repo https://github.com/user/repo
+# 从Git仓库创建并启动，自动打开IDE (推荐)
+codepod up myproject --repo https://github.com/user/repo --ide vscode
 
-# 指定IDE
-codepod up myproject --ide vscode
-
-# 指定代码目录
-codepod up myproject --path /path/to/code
+# 指定代码目录，自动打开IDE
+codepod up myproject --path /path/to/code --ide vscode
 
 # 仅创建，不启动 (类似 devpod create)
 codepod create myproject --repo https://github.com/user/repo
 ```
+
+**说明**: `codepod up` 会自动:
+1. 创建Workspace和持久化存储
+2. 调用devcon构建镜像
+3. 创建并启动容器
+4. 注入Agent
+5. 自动打开IDE并连接到开发环境
 
 ### 4. 管理Workspace
 
