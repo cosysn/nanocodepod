@@ -73,9 +73,33 @@ codepod config reset [--all]
 
 ---
 
-## 3. create 命令
+## 3. up 命令
 
-**用途**: 创建Workspace
+**用途**: 创建并启动Workspace（类似 devpod up）
+
+```bash
+codepod up <name> [--repo <url>] [--ide <type>] [--path <dir>]
+```
+
+**参数**:
+| 参数 | 类型 | 必填 | 描述 |
+|------|------|------|------|
+| name | string | 是 | Workspace名称 |
+| --repo | string | 否 | Git仓库URL |
+| --ide | string | 否 | IDE类型 (vscode/jetbrains) |
+| --path | string | 否 | 本地代码目录 |
+
+**示例**:
+```bash
+codepod up myproject --repo https://github.com/user/repo --ide vscode
+codepod up myproject --path /home/user/myproject
+```
+
+---
+
+## 4. create 命令
+
+**用途**: 仅创建Workspace（不启动），类似 devpod create
 
 ```bash
 codepod create <name> [--repo <url>] [--ide <type>] [--path <dir>]
@@ -91,13 +115,12 @@ codepod create <name> [--repo <url>] [--ide <type>] [--path <dir>]
 
 **示例**:
 ```bash
-codepod create myproject --repo https://github.com/user/repo --ide vscode
-codepod create myproject --path /home/user/myproject
+codepod create myproject --repo https://github.com/user/repo
 ```
 
 ---
 
-## 4. list 命令
+## 5. list 命令
 
 **用途**: 列出所有Workspace
 

@@ -70,7 +70,8 @@ specs/001-wsl-container-dev/
 ```text
 codepod/                 # CLI主程序
 ├── cmd/
-│   ├── create.go        # 创建Workspace
+│   ├── up.go            # 创建并启动Workspace (推荐)
+│   ├── create.go        # 仅创建Workspace (不启动)
 │   ├── list.go          # 列出Workspace
 │   ├── start.go         # 启动Workspace
 │   ├── stop.go          # 停止Workspace

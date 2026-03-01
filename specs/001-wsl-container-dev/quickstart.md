@@ -62,14 +62,17 @@ codepod config list
 ### 3. 创建Workspace
 
 ```bash
-# 从Git仓库创建
-codepod create myproject --repo https://github.com/user/repo
+# 从Git仓库创建并启动 (推荐)
+codepod up myproject --repo https://github.com/user/repo
 
 # 指定IDE
-codepod create myproject --ide vscode
+codepod up myproject --ide vscode
 
 # 指定代码目录
-codepod create myproject --path /path/to/code
+codepod up myproject --path /path/to/code
+
+# 仅创建，不启动 (类似 devpod create)
+codepod create myproject --repo https://github.com/user/repo
 ```
 
 ### 4. 管理Workspace
@@ -105,7 +108,8 @@ codepod connect myproject --ide vscode
 | `codepod init` | 初始化配置 |
 | `codepod config set <key> <value>` | 设置配置 |
 | `codepod config list` | 查看配置 |
-| `codepod create <name>` | 创建Workspace |
+| `codepod up <name>` | 创建并启动Workspace (推荐) |
+| `codepod create <name>` | 仅创建Workspace (不启动) |
 | `codepod list` | 列出Workspace |
 | `codepod start <name>` | 启动Workspace |
 | `codepod stop <name>` | 停止Workspace |
