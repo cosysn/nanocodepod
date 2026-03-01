@@ -7,18 +7,22 @@
 
 在Windows上基于WSL构建一个容器开发环境，类似devpod、daytona、coder但更简单。核心功能包括：
 1. TUI界面提供友好的进度显示和错误提示
-2. Workspace管理（关联代码仓、IDE、开发容器、域名、SSH配置）
+2. Workspace管理（关联代码仓、IDE，开发容器，域名，SSH配置）
 3. Devcontainer支持（集成devcon工具）
 4. Agent注入（提供SSH Server、Git Forward、监控）
 5. CLI配置管理（WSL发行版、Docker端点等）
+6. 持久化存储（WSL目录映射到容器）
+7. 端口分配管理（避免端口冲突）
+8. IDE自动启动（VS Code、JetBrains系列）
+9. 幂等支持（重入安全）
 
 主要技术方案：Go CLI + WSL2 + Docker + devcon
 
 ## Technical Context
 
 **Language/Version**: Go 1.21+
-**Primary Dependencies**: bubbletea (TUI框架), spf13/cobra (CLI框架), docker/client, wsl/api
-**Storage**: 本地文件系统 (JSON/YAML配置文件存放在 ~/.codepod/)
+**Primary Dependencies**: bubbletea (TUI框架), spf13/cobra (CLI框架), docker/client, golang.org/x/crypto/ssh
+**Storage**: 本地文件系统 (YAML配置文件存放在 ~/.codepod/)
 **Testing**: Go testing, integration tests
 **Target Platform**: Windows + WSL2
 **Project Type**: CLI工具 (命令行工具)
@@ -30,6 +34,7 @@
 - 需要WSL2和Docker Desktop
 - 配置文件存放在 ~/.codepod/
 - devcon工具路径: /home/ubuntu/devcon/
+- Agent提供SSH Server（不依赖sshd）
 **Scale/Scope**:
 - 单用户本地开发环境
 - 10-50个并发容器
@@ -57,12 +62,13 @@
 
 ```
 specs/001-wsl-container-dev/
-├── plan.md              # This file (/speckit.plan command output)
+├── plan.md              # This file
 ├── research.md          # Phase 0 output
 ├── data-model.md        # Phase 1 output
 ├── quickstart.md        # Phase 1 output
-├── contracts/           # Phase 1 output (CLI命令契约)
-└── tasks.md             # Phase 2 output (/speckit.tasks command)
+├── contracts/           # Phase 1 output
+│   └── cli-commands.md # CLI命令契约
+└── tasks.md            # Phase 2 output
 ```
 
 ### Source Code
@@ -71,31 +77,37 @@ specs/001-wsl-container-dev/
 codepod/                 # CLI主程序
 ├── cmd/
 │   ├── up.go            # 创建并启动Workspace (推荐)
-│   ├── create.go        # 仅创建Workspace (不启动)
+│   ├── create.go        # 仅创建Workspace
 │   ├── list.go          # 列出Workspace
 │   ├── start.go         # 启动Workspace
 │   ├── stop.go          # 停止Workspace
 │   ├── delete.go        # 删除Workspace
+│   ├── connect.go       # 连接Workspace (自动打开IDE)
 │   ├── config.go        # 配置管理
 │   └── root.go          # Root命令
 ├── internal/
 │   ├── config/          # 配置管理模块
-│   ├── workspace/       # Workspace管理模块
-│   ├── wsl/             # WSL交互模块
-│   ├── docker/          # Docker操作模块
-│   ├── agent/           # Agent注入模块
-│   ├── devcon/          # devcon集成模块
-│   ├── tui/             # TUI界面模块
+│   ├── workspace/        # Workspace管理
+│   ├── wsl/             # WSL交互
+│   ├── docker/          # Docker操作
+│   ├── agent/           # Agent注入
+│   ├── devcon/          # devcon集成
+│   ├── tui/             # TUI界面
+│   ├── ide/             # IDE启动
+│   ├── storage/         # 持久化存储
+│   ├── port/            # 端口分配
 │   └── types/           # 类型定义
 ├── tests/
 ├── docs/
-│   ├── cases/           # 测试用例文档
+│   ├── cases/           # 测试用例
 │   └── bugs.md          # Bug记录
 └── main.go
 
-agent/                   # Agent程序（注入到容器）
+agent/                   # Agent程序
 ├── main.go
-└── ...
+├── ssh/                 # SSH Server
+├── git/                 # Git Forward
+└── monitor/            # 监控
 ```
 
 **Structure Decision**:
@@ -103,30 +115,15 @@ agent/                   # Agent程序（注入到容器）
 - agent: 轻量级Agent程序，提供SSH Server、Git Forward、监控
 - 配置文件: ~/.codepod/config.yaml
 - Workspace数据: ~/.codepod/workspaces/
+- 工具目录: ~/.codepod/tools/ (devcon)
 
 ## Complexity Tracking
-
-> **Fill ONLY if Constitution Check has violations that must be justified**
 
 无需复杂度追踪，Constitution Check全部通过。
 
 ---
 
 ## Phase 0: Research (Research.md)
-
-### 需要研究的问题
-
-1. **TUI框架选择**: bubbletea vs tview vs其它Go TUI框架
-   - 决策: bubbletea (声明式，更好的测试性)
-
-2. **WSL2 API交互**: 使用wsl.exe命令行还是Windows API
-   - 决策: wsl.exe命令行 + Go标准库
-
-3. **Agent实现方案**: SSH Server实现
-   - 决策: 使用golang.org/x/crypto/ssh (不需要额外安装sshd)
-
-4. **devcon集成**: 如何调用devcon工具
-   - 决策: exec.Command调用，输出流式到TUI
 
 ### 技术选型总结
 
@@ -136,23 +133,43 @@ agent/                   # Agent程序（注入到容器）
 | TUI框架 | bubbletea | 声明式架构，易测试 |
 | Docker客户端 | docker/client | 官方SDK |
 | SSH Server | golang.org/x/crypto | 纯Go实现，无需sshd |
-| 配置文件 | YAML | 易读易写 |
+| 配置文件 | gopkg.in/yaml.v3 | 易读易写 |
+| IDE启动 | exec.Command | 调用系统命令打开IDE |
 
 ---
 
 ## Phase 1: Design
 
-### 待生成文档
+### 已生成文档
 
-- [ ] data-model.md - 数据模型设计
-- [ ] quickstart.md - 快速开始指南
-- [ ] contracts/ - CLI命令契约
+- [x] research.md - 技术选型研究
+- [x] data-model.md - 数据模型设计
+- [x] quickstart.md - 快速开始指南
+- [x] contracts/cli-commands.md - CLI命令契约
+
+### CLI命令
+
+| 命令 | 描述 |
+|------|------|
+| `codepod up <name>` | 创建并启动Workspace，自动打开IDE |
+| `codepod create <name>` | 仅创建Workspace |
+| `codepod list` | 列出Workspace |
+| `codepod start <name>` | 启动Workspace |
+| `codepod stop <name>` | 停止Workspace |
+| `codepod delete <name>` | 删除Workspace |
+| `codepod connect <name>` | 连接Workspace，自动打开IDE |
+| `codepod config` | 配置管理 |
+
+### IDE支持
+
+| IDE | 启动方式 |
+|-----|----------|
+| VS Code | `code --remote ssh-remote+...` |
+| JetBrains | `jetbrains-goland://...` |
 
 ---
 
 ## Next Steps
 
-1. 生成 research.md (Phase 0)
-2. 生成 data-model.md, quickstart.md, contracts/ (Phase 1)
-3. 运行 /speckit.tasks 生成任务列表
-4. 开始实现
+1. 运行 `/speckit.tasks` 生成任务列表
+2. 开始实现
