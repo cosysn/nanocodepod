@@ -28,6 +28,16 @@
 [PRINCIPLE_5_DESCRIPTION]
 <!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
 
+### [PRINCIPLE_6_NAME]
+<!-- Example: VI. All Tests Must Pass -->
+[PRINCIPLE_6_DESCRIPTION]
+<!-- Example: All unit, integration, and e2e tests MUST pass before committing; No broken tests in committed code -->
+
+### [PRINCIPLE_7_NAME]
+<!-- Example: VII. Test Coverage -->
+[PRINCIPLE_7_DESCRIPTION]
+<!-- Example: Unit test coverage must be at least 80%; Coverage measured by automated tools -->
+
 ## [SECTION_2_NAME]
 <!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
 

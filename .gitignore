@@ -1,0 +1,3 @@
+# Speckit - Feature development workflow
+# Do not commit intermediate state files
+.specify/memory/
