@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/codepod-io/codepod/internal/agent"
@@ -21,7 +22,7 @@ import (
 
 // Manager manages workspaces
 type Manager struct {
-	dockerClient *docker.Client
+	dockerClient docker.DockerClient
 	platform     *wsl.Platform
 	storage      *storage.Manager
 	portPool     *port.Pool
@@ -64,6 +65,32 @@ func New() (*Manager, error) {
 		storage:      storageManager,
 		portPool:     portPool,
 		devcon:       devconHandler,
+	}, nil
+}
+
+// NewWithMock creates a workspace manager with a mock Docker client for testing
+func NewWithMock(mockClient docker.DockerClient) (*Manager, error) {
+	platform, err := wsl.NewPlatform()
+	if err != nil {
+		return nil, err
+	}
+
+	storageManager, err := storage.New(platform)
+	if err != nil {
+		return nil, err
+	}
+
+	portPool, err := port.New()
+	if err != nil {
+		return nil, err
+	}
+
+	return &Manager{
+		dockerClient: mockClient,
+		platform:     platform,
+		storage:      storageManager,
+		portPool:     portPool,
+		devcon:       nil,
 	}, nil
 }
 
@@ -170,12 +197,41 @@ func (m *Manager) Create(name string, opts *CreateOptions) (*types.Workspace, er
 		}
 	}
 
+	// Determine container entrypoint and environment
+	var containerCmd []string
+	var containerEnv []string
+
+	if opts.InjectAgent {
+		// Use agent as container entrypoint (PID 0)
+		containerCmd = []string{"/usr/local/bin/codepod-agent"}
+		// Pass environment variables to agent
+		// Read from host environment or use defaults
+		agentPort := allocatedPort
+		if envPort := os.Getenv("CODEPOD_AGENT_PORT"); envPort != "" {
+			if port, err := strconv.Atoi(envPort); err == nil && port > 0 {
+				agentPort = port
+			}
+		}
+		agentPassword := "codepod"
+		if envPass := os.Getenv("CODEPOD_AGENT_PASSWORD"); envPass != "" {
+			agentPassword = envPass
+		}
+		containerEnv = []string{
+			fmt.Sprintf("CODEPOD_AGENT_PORT=%d", agentPort),
+			fmt.Sprintf("CODEPOD_AGENT_PASSWORD=%s", agentPassword),
+		}
+	} else {
+		// Default: use sleep infinity
+		containerCmd = []string{"sleep", "infinity"}
+		containerEnv = []string{}
+	}
+
 	// Create Docker container
 	containerConfig := &docker.ContainerConfig{
 		Name:    GetContainerName(name),
 		Image:   imageToUse,
-		Cmd:     []string{"sleep", "infinity"},
-		Env:     []string{},
+		Cmd:     containerCmd,
+		Env:     containerEnv,
 		Labels:  map[string]string{"codepod.workspace": name},
 		PortBindings: map[string][]docker.PortBinding{
 			"22/tcp": {{HostIP: "0.0.0.0", HostPort: fmt.Sprintf("%d", allocatedPort)}},
@@ -194,6 +250,11 @@ func (m *Manager) Create(name string, opts *CreateOptions) (*types.Workspace, er
 		return nil, err
 	}
 
+	agentStatus := "stopped"
+	if opts.InjectAgent {
+		agentStatus = "running"
+	}
+
 	workspace := &types.Workspace{
 		Name:        name,
 		UUID:        workspaceUUID,
@@ -205,7 +266,7 @@ func (m *Manager) Create(name string, opts *CreateOptions) (*types.Workspace, er
 		Container:   types.Container{Image: imageToUse, Name: containerConfig.Name},
 		Domain:      fmt.Sprintf("%s.local", name),
 		SSH:         types.SSH{},
-		Agent:       types.Agent{Port: 22001, Status: "stopped"},
+		Agent:       types.Agent{Port: allocatedPort, Status: agentStatus},
 		Port:        allocatedPort,
 		StoragePath: storagePath,
 		CodePath:    codePath,
@@ -223,13 +284,12 @@ func (m *Manager) Create(name string, opts *CreateOptions) (*types.Workspace, er
 }
 
 // Start starts a workspace
-func (m *Manager) Start(name string) (*types.Workspace, error) {
+func (m *Manager) Start(name string, injectAgent bool) (*types.Workspace, error) {
 	workspace, err := m.Get(name)
 	if err != nil {
 		return nil, err
 	}
 
-	// Even if workspace is running, we still need to inject agent if not done
 	// Use UUID for storage binding
 	storageID := workspace.UUID
 	if storageID == "" {
@@ -237,13 +297,45 @@ func (m *Manager) Start(name string) (*types.Workspace, error) {
 		storageID = name
 	}
 
+	// Determine if we should use agent
+	useAgent := injectAgent || workspace.Agent.Status == "running"
+
 	exists := m.dockerClient.ContainerExists(workspace.Container.Name)
 	if !exists {
+		// Determine container entrypoint based on agent status
+		var containerCmd []string
+		var containerEnv []string
+
+		if useAgent {
+			// Use agent as container entrypoint (PID 0)
+			containerCmd = []string{"/usr/local/bin/codepod-agent"}
+			// Read from host environment or use defaults
+			agentPort := workspace.Port
+			if envPort := os.Getenv("CODEPOD_AGENT_PORT"); envPort != "" {
+				if port, err := strconv.Atoi(envPort); err == nil && port > 0 {
+					agentPort = port
+				}
+			}
+			agentPassword := "codepod"
+			if envPass := os.Getenv("CODEPOD_AGENT_PASSWORD"); envPass != "" {
+				agentPassword = envPass
+			}
+			containerEnv = []string{
+				fmt.Sprintf("CODEPOD_AGENT_PORT=%d", agentPort),
+				fmt.Sprintf("CODEPOD_AGENT_PASSWORD=%s", agentPassword),
+			}
+		} else {
+			// Default: use sleep infinity
+			containerCmd = []string{"sleep", "infinity"}
+			containerEnv = []string{}
+		}
+
 		// Recreate container
 		containerConfig := &docker.ContainerConfig{
 			Name:    workspace.Container.Name,
 			Image:   workspace.Container.Image,
-			Cmd:     []string{"sleep", "infinity"},
+			Cmd:     containerCmd,
+			Env:     containerEnv,
 			Labels:  map[string]string{"codepod.workspace": name},
 			PortBindings: map[string][]docker.PortBinding{
 				"22/tcp": {{HostIP: "0.0.0.0", HostPort: fmt.Sprintf("%d", workspace.Port)}},
@@ -264,17 +356,18 @@ func (m *Manager) Start(name string) (*types.Workspace, error) {
 		return nil, err
 	}
 
-	// Inject and start agent
-	if err := m.injectAgent(workspace); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: failed to inject agent: %v\n", err)
-		// Continue without agent failure
-	}
-
 	// Clone repository if specified (for backwards compatibility)
 	if workspace.Repository.URL != "" && workspace.CodePath == "" {
 		if err := m.cloneRepository(workspace); err != nil {
 			return nil, err
 		}
+	}
+
+	// Update agent status
+	if useAgent {
+		workspace.Agent.Status = "running"
+	} else {
+		workspace.Agent.Status = "stopped"
 	}
 
 	workspace.State = types.WorkspaceStateRunning
@@ -420,6 +513,7 @@ type CreateOptions struct {
 	Image       string
 	Repository  types.Repository
 	IDE         types.IDE
+	InjectAgent bool
 }
 
 // GetWorkspaceDir returns the workspace directory

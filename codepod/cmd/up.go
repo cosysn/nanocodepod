@@ -27,6 +27,7 @@ var (
 	flagLocalPath   string
 	flagIDEType     string
 	flagAutoConnect bool
+	flagAgent       bool
 )
 
 func init() {
@@ -36,6 +37,7 @@ func init() {
 	upCmd.Flags().StringVar(&flagLocalPath, "local", "", "Local directory path to use as workspace")
 	upCmd.Flags().StringVar(&flagIDEType, "ide", "vscode", "IDE type (vscode, jetbrains)")
 	upCmd.Flags().BoolVar(&flagAutoConnect, "connect", false, "Auto-connect after starting")
+	upCmd.Flags().BoolVar(&flagAgent, "agent", true, "Enable agent injection (PID 0, SSH+gRPC)")
 
 	rootCmd.AddCommand(upCmd)
 }
@@ -77,7 +79,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 
 	if exists {
 		fmt.Printf("Workspace %s already exists, starting...\n", name)
-		ws, err = wsm.Start(name)
+		ws, err = wsm.Start(name, flagAgent)
 		if err != nil {
 			return fmt.Errorf("failed to start workspace: %w", err)
 		}
@@ -97,6 +99,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 			IDE: types.IDE{
 				Type: ideType,
 			},
+			InjectAgent: flagAgent,
 		}
 
 		ws, err = wsm.Create(name, createOpts)
@@ -105,7 +108,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 		}
 
 		// Start the workspace
-		ws, err = wsm.Start(name)
+		ws, err = wsm.Start(name, flagAgent)
 		if err != nil {
 			return fmt.Errorf("failed to start workspace: %w", err)
 		}
@@ -115,6 +118,15 @@ func runUp(cmd *cobra.Command, args []string) error {
 	fmt.Printf("\nWorkspace '%s' is running!\n", name)
 	fmt.Printf("  SSH Port: %d\n", ws.Port)
 	fmt.Printf("  State: %s\n", ws.State)
+	fmt.Printf("  Agent: %s\n", ws.Agent.Status)
+	if ws.Agent.Status == "running" {
+		fmt.Println("\nAgent Connection Info:")
+		fmt.Printf("  Host: localhost\n")
+		fmt.Printf("  Port: %d\n", ws.Agent.Port)
+		fmt.Printf("  Username: root\n")
+		fmt.Printf("  Password: codepod\n")
+		fmt.Printf("  gRPC: localhost:%d (for command dispatch)\n\n", ws.Agent.Port)
+	}
 
 	// Auto-connect if requested
 	if flagAutoConnect {

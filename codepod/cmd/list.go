@@ -38,7 +38,7 @@ func runList(cmd *cobra.Command, args []string) error {
 	fmt.Println("Workspaces:")
 	fmt.Println("------------")
 	for _, ws := range workspaces {
-		fmt.Printf("  %s\t%s\tPort: %d\n", ws.Name, ws.State, ws.Port)
+		fmt.Printf("  %s\t%s\tPort: %d\tAgent: %s\n", ws.Name, ws.State, ws.Port, ws.Agent.Status)
 	}
 
 	return nil

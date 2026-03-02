@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/codepod-io/codepod/internal/agent"
 	"github.com/spf13/cobra"
@@ -20,8 +21,20 @@ func main() {
 		RunE:  runAgent,
 	}
 
-	rootCmd.Flags().IntVar(&flagPort, "port", 22001, "Agent SSH port")
-	rootCmd.Flags().StringVar(&flagPassword, "password", "codepod", "Agent password")
+	// Read from environment variables with defaults
+	defaultPort := 22001
+	if envPort := os.Getenv("CODEPOD_AGENT_PORT"); envPort != "" {
+		if port, err := strconv.Atoi(envPort); err == nil && port > 0 {
+			defaultPort = port
+		}
+	}
+	defaultPassword := "codepod"
+	if envPass := os.Getenv("CODEPOD_AGENT_PASSWORD"); envPass != "" {
+		defaultPassword = envPass
+	}
+
+	rootCmd.Flags().IntVar(&flagPort, "port", defaultPort, "Agent SSH port")
+	rootCmd.Flags().StringVar(&flagPassword, "password", defaultPassword, "Agent password")
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)

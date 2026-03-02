@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package proto;
+
+option go_package = "github.com/codepod-io/codepod/proto";
+
+// Agent service for command execution and status reporting
+service Agent {
+    // Execute a command in the container
+    rpc ExecuteCommand(CommandRequest) returns (CommandResponse);
+
+    // Get agent status
+    rpc GetStatus(StatusRequest) returns (StatusResponse);
+
+    // Stream command output
+    rpc StreamCommand(CommandRequest) returns (stream CommandOutput);
+}
+
+message CommandRequest {
+    string command = 1;
+    map<string, string> env = 2;
+    string working_dir = 3;
+}
+
+message CommandResponse {
+    int32 exit_code = 1;
+    string output = 2;
+    string error = 3;
+}
+
+message CommandOutput {
+    bytes data = 1;
+    bool stderr = 2;
+}
+
+message StatusRequest {}
+
+message StatusResponse {
+    string status = 1;
+    int32 pid = 2;
+    int64 uptime_seconds = 3;
+    int32 active_connections = 4;
+}
