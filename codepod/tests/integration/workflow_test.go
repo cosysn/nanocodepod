@@ -40,7 +40,7 @@ func TestFullWorkflow(t *testing.T) {
 	}
 
 	// Test 3: Start workspace
-	ws, err = wsm.Start(testName)
+	ws, err = wsm.Start(testName, false)
 	if err != nil {
 		t.Fatalf("failed to start workspace: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestFullWorkflow(t *testing.T) {
 	}
 
 	// Test 6: Start again (idempotency)
-	ws, err = wsm.Start(testName)
+	ws, err = wsm.Start(testName, false)
 	if err != nil {
 		t.Fatalf("failed to start workspace again: %v", err)
 	}
@@ -123,12 +123,12 @@ func TestIdempotency(t *testing.T) {
 	}
 
 	// Start multiple times
-	_, err = wsm.Start(testName)
+	_, err = wsm.Start(testName, false)
 	if err != nil {
 		t.Fatalf("first start failed: %v", err)
 	}
 
-	_, err = wsm.Start(testName)
+	_, err = wsm.Start(testName, false)
 	if err != nil {
 		t.Fatalf("idempotent start failed: %v", err)
 	}
@@ -164,7 +164,7 @@ func TestConfigPersistence(t *testing.T) {
 
 	// Create and start
 	wsm.Create(testName, &workspace.CreateOptions{Image: "ubuntu:22.04"})
-	wsm.Start(testName)
+	wsm.Start(testName, false)
 
 	// Simulate restart - new manager
 	wsm2, _ := workspace.New()
