@@ -78,16 +78,17 @@ func TestCLI_Config_Set_Get(t *testing.T) {
 // TestCLI_Up_CreateStart tests up command (create + start)
 func TestCLI_Up_CreateStart(t *testing.T) {
 	binary := getBinaryPath()
+	configPath := getTestConfigPath()
 	workspaceName := "e2e-test"
 
 	// Cleanup
-	cmd := exec.Command(binary, "delete", workspaceName)
+	cmd := exec.Command(binary, "--config", configPath, "delete", workspaceName)
 	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
 	cmd.Output()
 	time.Sleep(1 * time.Second)
 
 	// Run up (use --no-agent since test binary doesn't include agent)
-	cmd = exec.Command(binary, "up", workspaceName, "--image", "ubuntu:22.04", "--no-agent")
+	cmd = exec.Command(binary, "--config", configPath, "up", workspaceName, "--image", "ubuntu:22.04", "--no-agent")
 	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
 	out, err := cmd.Output()
 	if err != nil {
@@ -151,20 +152,21 @@ func TestCLI_List(t *testing.T) {
 // TestCLI_Stop tests stop command
 func TestCLI_Stop(t *testing.T) {
 	binary := getBinaryPath()
+	configPath := getTestConfigPath()
 	workspaceName := "e2e-stop-test"
 
 	// Create workspace
-	cmd := exec.Command(binary, "delete", workspaceName)
+	cmd := exec.Command(binary, "--config", configPath, "delete", workspaceName)
 	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
 	cmd.Output()
 
-	cmd = exec.Command(binary, "up", workspaceName, "--image", "ubuntu:22.04")
+	cmd = exec.Command(binary, "--config", configPath, "up", workspaceName, "--image", "ubuntu:22.04", "--no-agent")
 	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
 	cmd.Output()
 	time.Sleep(2 * time.Second)
 
 	// Stop
-	cmd = exec.Command(binary, "stop", workspaceName)
+	cmd = exec.Command(binary, "--config", configPath, "stop", workspaceName)
 	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
 	out, err := cmd.Output()
 	if err != nil {
@@ -185,24 +187,25 @@ func TestCLI_Stop(t *testing.T) {
 // TestCLI_Start tests start command
 func TestCLI_Start(t *testing.T) {
 	binary := getBinaryPath()
+	configPath := getTestConfigPath()
 	workspaceName := "e2e-start-test"
 
 	// Create and stop
-	cmd := exec.Command(binary, "delete", workspaceName)
+	cmd := exec.Command(binary, "--config", configPath, "delete", workspaceName)
 	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
 	cmd.Output()
 
-	cmd = exec.Command(binary, "up", workspaceName, "--image", "ubuntu:22.04")
+	cmd = exec.Command(binary, "--config", configPath, "up", workspaceName, "--image", "ubuntu:22.04", "--no-agent")
 	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
 	cmd.Output()
 
-	cmd = exec.Command(binary, "stop", workspaceName)
+	cmd = exec.Command(binary, "--config", configPath, "stop", workspaceName)
 	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
 	cmd.Output()
 	time.Sleep(1 * time.Second)
 
 	// Start
-	cmd = exec.Command(binary, "start", workspaceName)
+	cmd = exec.Command(binary, "--config", configPath, "start", workspaceName)
 	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
 	out, err := cmd.Output()
 	if err != nil {
@@ -215,7 +218,7 @@ func TestCLI_Start(t *testing.T) {
 	}
 
 	// Cleanup
-	cmd = exec.Command(binary, "delete", workspaceName)
+	cmd = exec.Command(binary, "--config", configPath, "delete", workspaceName)
 	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
 	cmd.Output()
 }
@@ -223,16 +226,17 @@ func TestCLI_Start(t *testing.T) {
 // TestCLI_Delete tests delete command
 func TestCLI_Delete(t *testing.T) {
 	binary := getBinaryPath()
+	configPath := getTestConfigPath()
 	workspaceName := "e2e-delete-test"
 
 	// Create workspace
-	cmd := exec.Command(binary, "up", workspaceName, "--image", "ubuntu:22.04")
+	cmd := exec.Command(binary, "--config", configPath, "up", workspaceName, "--image", "ubuntu:22.04", "--no-agent")
 	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
 	cmd.Output()
 	time.Sleep(2 * time.Second)
 
 	// Delete
-	cmd = exec.Command(binary, "delete", workspaceName)
+	cmd = exec.Command(binary, "--config", configPath, "delete", workspaceName)
 	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
 	out, err := cmd.Output()
 	if err != nil {
@@ -248,22 +252,23 @@ func TestCLI_Delete(t *testing.T) {
 // TestCLI_Idempotency tests command idempotency
 func TestCLI_Idempotency(t *testing.T) {
 	binary := getBinaryPath()
+	configPath := getTestConfigPath()
 	workspaceName := "e2e-idempotent"
 
 	// Cleanup
-	cmd := exec.Command(binary, "delete", workspaceName)
+	cmd := exec.Command(binary, "--config", configPath, "delete", workspaceName)
 	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
 	cmd.Output()
 	time.Sleep(1 * time.Second)
 
 	// Create twice
-	cmd = exec.Command(binary, "up", workspaceName, "--image", "ubuntu:22.04")
+	cmd = exec.Command(binary, "--config", configPath, "up", workspaceName, "--image", "ubuntu:22.04", "--no-agent")
 	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
 	cmd.Output()
 	time.Sleep(2 * time.Second)
 
 	// Second up should succeed (idempotent)
-	cmd = exec.Command(binary, "up", workspaceName, "--image", "ubuntu:22.04")
+	cmd = exec.Command(binary, "--config", configPath, "up", workspaceName, "--image", "ubuntu:22.04", "--no-agent")
 	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
 	out, err := cmd.Output()
 	if err != nil {
@@ -271,7 +276,7 @@ func TestCLI_Idempotency(t *testing.T) {
 	}
 
 	// Cleanup
-	cmd = exec.Command(binary, "delete", workspaceName)
+	cmd = exec.Command(binary, "--config", configPath, "delete", workspaceName)
 	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
 	cmd.Output()
 }
