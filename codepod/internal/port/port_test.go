@@ -156,3 +156,60 @@ func TestPool_Allocate_Exhausted(t *testing.T) {
 	pool.Release(p2)
 	os.RemoveAll(dir)
 }
+
+func TestPool_SetUsed(t *testing.T) {
+	dir, _ := config.GetConfigDir()
+	os.RemoveAll(dir)
+	config.EnsureConfigDir()
+
+	cfg := config.GetDefaultConfig()
+	cfg.PortPool.Used = []int{}
+	config.SaveConfig(cfg)
+
+	pool, _ := New()
+
+	// Set used ports
+	err := pool.SetUsed([]int{22005, 22006, 22007})
+	if err != nil {
+		t.Fatalf("failed to set used: %v", err)
+	}
+
+	// Verify
+	if !pool.IsAllocated(22005) {
+		t.Error("port 22005 should be allocated")
+	}
+	if !pool.IsAllocated(22006) {
+		t.Error("port 22006 should be allocated")
+	}
+	if !pool.IsAllocated(22007) {
+		t.Error("port 22007 should be allocated")
+	}
+
+	os.RemoveAll(dir)
+}
+
+func TestPool_GetConfig(t *testing.T) {
+	dir, _ := config.GetConfigDir()
+	os.RemoveAll(dir)
+	config.EnsureConfigDir()
+
+	cfg := config.GetDefaultConfig()
+	cfg.PortPool.Start = 22000
+	cfg.PortPool.End = 22010
+	cfg.PortPool.Used = []int{}
+	config.SaveConfig(cfg)
+
+	pool, _ := New()
+
+	// Get config
+	configResult := pool.GetConfig()
+
+	if configResult.Start != 22000 {
+		t.Errorf("want start 22000, got %d", configResult.Start)
+	}
+	if configResult.End != 22010 {
+		t.Errorf("want end 22010, got %d", configResult.End)
+	}
+
+	os.RemoveAll(dir)
+}

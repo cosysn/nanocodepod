@@ -7,10 +7,25 @@ import (
 	"strings"
 )
 
+// DockerClient defines the interface for Docker operations
+type DockerClient interface {
+	CreateContainer(config *ContainerConfig) (string, error)
+	StartContainer(name string) error
+	StopContainer(name string) error
+	RemoveContainer(name string, force bool) error
+	InspectContainer(name string) (*ContainerInfo, error)
+	ContainerExists(name string) bool
+	ExecInContainer(name string, cmd []string) error
+	Close() error
+}
+
 // Client represents a Docker client using CLI
 type Client struct {
 	daemonAddr string
 }
+
+// Ensure Client implements DockerClient
+var _ DockerClient = (*Client)(nil)
 
 // New creates a new Docker client
 func New(daemonAddr string) (*Client, error) {

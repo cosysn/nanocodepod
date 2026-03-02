@@ -37,7 +37,7 @@ func runConnect(cmd *cobra.Command, args []string) error {
 	// Start workspace if not running
 	if ws.State != "running" {
 		fmt.Printf("Starting workspace %s...\n", name)
-		ws, err = wsm.Start(name)
+		ws, err = wsm.Start(name, ws.Agent.Status == "running")
 		if err != nil {
 			return fmt.Errorf("failed to start workspace: %w", err)
 		}
