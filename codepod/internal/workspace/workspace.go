@@ -202,24 +202,9 @@ func (m *Manager) Create(name string, opts *CreateOptions) (*types.Workspace, er
 	var containerEnv []string
 
 	if opts.InjectAgent {
-		// Use agent as container entrypoint (PID 0)
-		containerCmd = []string{"/usr/local/bin/codepod-agent"}
-		// Pass environment variables to agent
-		// Read from host environment or use defaults
-		agentPort := allocatedPort
-		if envPort := os.Getenv("CODEPOD_AGENT_PORT"); envPort != "" {
-			if port, err := strconv.Atoi(envPort); err == nil && port > 0 {
-				agentPort = port
-			}
-		}
-		agentPassword := "codepod"
-		if envPass := os.Getenv("CODEPOD_AGENT_PASSWORD"); envPass != "" {
-			agentPassword = envPass
-		}
-		containerEnv = []string{
-			fmt.Sprintf("CODEPOD_AGENT_PORT=%d", agentPort),
-			fmt.Sprintf("CODEPOD_AGENT_PASSWORD=%s", agentPassword),
-		}
+		// First create container with sleep infinity, then copy agent and start it
+		containerCmd = []string{"sleep", "infinity"}
+		containerEnv = []string{}
 	} else {
 		// Default: use sleep infinity
 		containerCmd = []string{"sleep", "infinity"}
@@ -248,6 +233,41 @@ func (m *Manager) Create(name string, opts *CreateOptions) (*types.Workspace, er
 		m.storage.DeleteWorkspaceStorage(workspaceUUID)
 		m.portPool.Release(allocatedPort)
 		return nil, err
+	}
+
+	// If agent injection is enabled, copy agent binary to container
+	if opts.InjectAgent {
+		agentPath, err := m.getAgentBinaryPath()
+		if err != nil {
+			m.dockerClient.RemoveContainer(containerID, true)
+			m.storage.DeleteWorkspaceStorage(workspaceUUID)
+			m.portPool.Release(allocatedPort)
+			return nil, fmt.Errorf("failed to find agent binary: %w", err)
+		}
+
+		// Copy agent to container
+		if err := m.dockerClient.CopyToContainer(containerID, agentPath, "/usr/local/bin/codepod-agent"); err != nil {
+			m.dockerClient.RemoveContainer(containerID, true)
+			m.storage.DeleteWorkspaceStorage(workspaceUUID)
+			m.portPool.Release(allocatedPort)
+			return nil, fmt.Errorf("failed to copy agent to container: %w", err)
+		}
+
+		// Make agent executable
+		if err := m.dockerClient.ExecInContainer(containerID, []string{"chmod", "+x", "/usr/local/bin/codepod-agent"}); err != nil {
+			m.dockerClient.RemoveContainer(containerID, true)
+			m.storage.DeleteWorkspaceStorage(workspaceUUID)
+			m.portPool.Release(allocatedPort)
+			return nil, fmt.Errorf("failed to make agent executable: %w", err)
+		}
+
+		// Install openssh-client for ssh-keygen (needed for host key generation)
+		if err := m.dockerClient.ExecInContainer(containerID, []string{"apt-get", "update"}); err != nil {
+			fmt.Printf("Warning: failed to update apt: %v\n", err)
+		}
+		if err := m.dockerClient.ExecInContainer(containerID, []string{"apt-get", "install", "-y", "openssh-client"}); err != nil {
+			fmt.Printf("Warning: failed to install openssh-client: %v\n", err)
+		}
 	}
 
 	agentStatus := "stopped"
@@ -354,6 +374,57 @@ func (m *Manager) Start(name string, injectAgent bool) (*types.Workspace, error)
 
 	if err := m.dockerClient.StartContainer(workspace.Container.Name); err != nil {
 		return nil, err
+	}
+
+	// If agent is enabled, start the agent in the container
+	if useAgent {
+		// Check if agent binary exists in container
+		checkCmd := []string{"test", "-f", "/usr/local/bin/codepod-agent"}
+		if err := m.dockerClient.ExecInContainer(workspace.Container.Name, checkCmd); err != nil {
+			// Agent not found, copy it
+			agentPath, err := m.getAgentBinaryPath()
+			if err != nil {
+				return nil, fmt.Errorf("failed to find agent binary: %w", err)
+			}
+			if err := m.dockerClient.CopyToContainer(workspace.Container.Name, agentPath, "/usr/local/bin/codepod-agent"); err != nil {
+				return nil, fmt.Errorf("failed to copy agent to container: %w", err)
+			}
+			// Make executable
+			if err := m.dockerClient.ExecInContainer(workspace.Container.Name, []string{"chmod", "+x", "/usr/local/bin/codepod-agent"}); err != nil {
+				return nil, fmt.Errorf("failed to make agent executable: %w", err)
+			}
+
+			// Install openssh-client for ssh-keygen (needed for host key generation)
+			if err := m.dockerClient.ExecInContainer(workspace.Container.Name, []string{"apt-get", "update"}); err != nil {
+				fmt.Printf("Warning: failed to update apt: %v\n", err)
+			}
+			if err := m.dockerClient.ExecInContainer(workspace.Container.Name, []string{"apt-get", "install", "-y", "openssh-client"}); err != nil {
+				fmt.Printf("Warning: failed to install openssh-client: %v\n", err)
+			}
+		}
+
+		// Start the agent
+		agentPort := workspace.Port
+		if envPort := os.Getenv("CODEPOD_AGENT_PORT"); envPort != "" {
+			if port, err := strconv.Atoi(envPort); err == nil && port > 0 {
+				agentPort = port
+			}
+		}
+		agentPassword := "codepod"
+		if envPass := os.Getenv("CODEPOD_AGENT_PASSWORD"); envPass != "" {
+			agentPassword = envPass
+		}
+
+		// Kill sleep and start agent (using init mechanism)
+		// Note: This doesn't run as PID 0, but it's sufficient for most use cases
+		startAgentCmd := []string{
+			"bash", "-c",
+			fmt.Sprintf("pkill -f 'sleep infinity' || true; nohup /usr/local/bin/codepod-agent --port %d --password %s > /tmp/agent.log 2>&1 &",
+				agentPort, agentPassword),
+		}
+		if err := m.dockerClient.ExecInContainerDetached(workspace.Container.Name, startAgentCmd); err != nil {
+			fmt.Printf("Warning: failed to start agent: %v\n", err)
+		}
 	}
 
 	// Clone repository if specified (for backwards compatibility)
@@ -711,4 +782,28 @@ func marshalWorkspace(workspace *types.Workspace) ([]byte, error) {
 
 func unmarshalWorkspace(data []byte, workspace *types.Workspace) error {
 	return yaml.Unmarshal(data, workspace)
+}
+
+// getAgentBinaryPath returns the path to the codepod-agent binary
+func (m *Manager) getAgentBinaryPath() (string, error) {
+	// First try to find it in PATH
+	agentPath, err := exec.LookPath("codepod-agent")
+	if err == nil {
+		return agentPath, nil
+	}
+
+	// Check common locations
+	locations := []string{
+		"/tmp/codepod-agent",
+		filepath.Join(os.Getenv("HOME"), "go/bin/codepod-agent"),
+		"/usr/local/bin/codepod-agent",
+	}
+
+	for _, loc := range locations {
+		if _, err := os.Stat(loc); err == nil {
+			return loc, nil
+		}
+	}
+
+	return "", fmt.Errorf("codepod-agent binary not found")
 }

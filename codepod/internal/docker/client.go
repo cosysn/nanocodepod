@@ -16,6 +16,8 @@ type DockerClient interface {
 	InspectContainer(name string) (*ContainerInfo, error)
 	ContainerExists(name string) bool
 	ExecInContainer(name string, cmd []string) error
+	ExecInContainerDetached(name string, cmd []string) error
+	CopyToContainer(containerID, src, dest string) error
 	Close() error
 }
 
@@ -229,6 +231,21 @@ func (c *Client) ExecInContainer(name string, cmdArgs []string) error {
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
 
+	return cmd.Run()
+}
+
+// ExecInContainerDetached executes a command in a container in detached mode
+func (c *Client) ExecInContainerDetached(name string, cmdArgs []string) error {
+	args := []string{"exec", "-d", name}
+	args = append(args, cmdArgs...)
+
+	cmd := exec.Command("docker", args...)
+	return cmd.Run()
+}
+
+// CopyToContainer copies a file to a container
+func (c *Client) CopyToContainer(containerID, src, dest string) error {
+	cmd := exec.Command("docker", "cp", src, fmt.Sprintf("%s:%s", containerID, dest))
 	return cmd.Run()
 }
 
