@@ -26,6 +26,11 @@ func getBinaryPath() string {
 	return "./codepod"
 }
 
+// getTestConfigPath returns a config path for tests
+func getTestConfigPath() string {
+	return "/tmp/codepod-e2e-config"  // This is passed as --config which expects a directory
+}
+
 // TestCLI_Config_List tests config list
 func TestCLI_Config_List(t *testing.T) {
 	binary := getBinaryPath()
@@ -81,8 +86,8 @@ func TestCLI_Up_CreateStart(t *testing.T) {
 	cmd.Output()
 	time.Sleep(1 * time.Second)
 
-	// Run up
-	cmd = exec.Command(binary, "up", workspaceName, "--image", "ubuntu:22.04")
+	// Run up (use --no-agent since test binary doesn't include agent)
+	cmd = exec.Command(binary, "up", workspaceName, "--image", "ubuntu:22.04", "--no-agent")
 	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
 	out, err := cmd.Output()
 	if err != nil {
@@ -111,20 +116,21 @@ func TestCLI_Up_CreateStart(t *testing.T) {
 // TestCLI_List tests list command
 func TestCLI_List(t *testing.T) {
 	binary := getBinaryPath()
+	configPath := getTestConfigPath()
 	workspaceName := "e2e-list-test"
 
 	// Create a workspace first
-	cmd := exec.Command(binary, "delete", workspaceName)
+	cmd := exec.Command(binary, "--config", configPath, "delete", workspaceName)
 	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
 	cmd.Output()
 
-	cmd = exec.Command(binary, "up", workspaceName, "--image", "ubuntu:22.04")
+	cmd = exec.Command(binary, "--config", configPath, "up", workspaceName, "--image", "ubuntu:22.04", "--no-agent")
 	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
 	cmd.Output()
 	time.Sleep(2 * time.Second)
 
 	// List
-	cmd = exec.Command(binary, "list")
+	cmd = exec.Command(binary, "--config", configPath, "list")
 	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
 	out, err := cmd.Output()
 	if err != nil {
@@ -137,7 +143,7 @@ func TestCLI_List(t *testing.T) {
 	}
 
 	// Cleanup
-	cmd = exec.Command(binary, "delete", workspaceName)
+	cmd = exec.Command(binary, "--config", configPath, "delete", workspaceName)
 	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
 	cmd.Output()
 }
@@ -345,11 +351,12 @@ func TestCLI_PortAllocation(t *testing.T) {
 // TestCLI_MultipleWorkspaces tests multiple workspace management
 func TestCLI_MultipleWorkspaces(t *testing.T) {
 	binary := getBinaryPath()
+	configPath := getTestConfigPath()
 	workspaces := []string{"e2e-multi1", "e2e-multi2", "e2e-multi3"}
 
 	// Cleanup
 	for _, ws := range workspaces {
-		cmd := exec.Command(binary, "delete", ws)
+		cmd := exec.Command(binary, "--config", configPath, "delete", ws)
 		cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
 		cmd.Output()
 	}
@@ -357,14 +364,14 @@ func TestCLI_MultipleWorkspaces(t *testing.T) {
 
 	// Create multiple workspaces
 	for _, ws := range workspaces {
-		cmd := exec.Command(binary, "up", ws, "--image", "ubuntu:22.04")
+		cmd := exec.Command(binary, "--config", configPath, "up", ws, "--image", "ubuntu:22.04", "--no-agent")
 		cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
 		cmd.Output()
 	}
 	time.Sleep(4 * time.Second)
 
 	// List
-	cmd := exec.Command(binary, "list")
+	cmd := exec.Command(binary, "--config", configPath, "list")
 	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
 	out, err := cmd.Output()
 	if err != nil {
@@ -380,7 +387,7 @@ func TestCLI_MultipleWorkspaces(t *testing.T) {
 
 	// Cleanup
 	for _, ws := range workspaces {
-		cmd := exec.Command(binary, "delete", ws)
+		cmd := exec.Command(binary, "--config", configPath, "delete", ws)
 		cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
 		cmd.Output()
 	}

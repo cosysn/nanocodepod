@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/codepod-io/codepod/internal/types"
-	"gopkg.in/yaml.v3"
+	yaml "gopkg.in/yaml.v3"
 )
 
 const (
@@ -17,13 +18,31 @@ const (
 	ToolsDir = "tools"
 )
 
+var (
+	configDirOverride string
+	configDirOnce sync.Once
+)
+
+// SetConfigDir sets the config directory override
+func SetConfigDir(dir string) {
+	configDirOverride = dir
+}
+
 // GetConfigDir returns the config directory path
 func GetConfigDir() (string, error) {
+	if configDirOverride != "" {
+		return configDirOverride, nil
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to get home directory: %w", err)
 	}
 	return filepath.Join(home, ConfigDir), nil
+}
+
+// ResetConfigDir resets the config directory override (for testing)
+func ResetConfigDir() {
+	configDirOverride = ""
 }
 
 // GetWorkspacesDir returns the workspaces directory path

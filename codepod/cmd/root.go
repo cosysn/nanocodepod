@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/codepod-io/codepod/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -12,6 +13,9 @@ var rootCmd = &cobra.Command{
 	Long:  `在Windows上基于WSL构建容器开发环境，类似devpod但更简单。`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// Initialize config directory
+		if cfgFile != "" {
+			config.SetConfigDir(cfgFile)
+		}
 	},
 }
 

@@ -554,8 +554,14 @@ func (m *Manager) List() ([]*types.Workspace, error) {
 
 	var workspaces []*types.Workspace
 	for _, entry := range entries {
+		// Skip directories, look for .yaml files
 		if entry.IsDir() {
-			workspace, err := m.Get(entry.Name())
+			continue
+		}
+		name := entry.Name()
+		if len(name) > 5 && name[len(name)-5:] == ".yaml" {
+			workspaceName := name[:len(name)-5]
+			workspace, err := m.Get(workspaceName)
 			if err != nil {
 				continue
 			}
