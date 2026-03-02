@@ -28,6 +28,7 @@ var (
 	flagIDEType     string
 	flagAutoConnect bool
 	flagAgent       bool
+	flagNoAgent     bool
 )
 
 func init() {
@@ -38,6 +39,7 @@ func init() {
 	upCmd.Flags().StringVar(&flagIDEType, "ide", "vscode", "IDE type (vscode, jetbrains)")
 	upCmd.Flags().BoolVar(&flagAutoConnect, "connect", false, "Auto-connect after starting")
 	upCmd.Flags().BoolVar(&flagAgent, "agent", true, "Enable agent injection (PID 0, SSH+gRPC)")
+	upCmd.Flags().BoolVar(&flagNoAgent, "no-agent", false, "Disable agent injection")
 
 	rootCmd.AddCommand(upCmd)
 }
@@ -75,11 +77,14 @@ func runUp(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to check workspace: %w", err)
 	}
 
+	// Handle agent flag: --no-agent overrides --agent
+	injectAgent := flagAgent && !flagNoAgent
+
 	var ws *types.Workspace
 
 	if exists {
 		fmt.Printf("Workspace %s already exists, starting...\n", name)
-		ws, err = wsm.Start(name, flagAgent)
+		ws, err = wsm.Start(name, injectAgent)
 		if err != nil {
 			return fmt.Errorf("failed to start workspace: %w", err)
 		}
@@ -99,7 +104,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 			IDE: types.IDE{
 				Type: ideType,
 			},
-			InjectAgent: flagAgent,
+			InjectAgent: injectAgent,
 		}
 
 		ws, err = wsm.Create(name, createOpts)
@@ -108,7 +113,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 		}
 
 		// Start the workspace
-		ws, err = wsm.Start(name, flagAgent)
+		ws, err = wsm.Start(name, injectAgent)
 		if err != nil {
 			return fmt.Errorf("failed to start workspace: %w", err)
 		}
