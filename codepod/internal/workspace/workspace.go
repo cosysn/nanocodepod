@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/codepod-io/codepod/internal/agent"
 	"github.com/codepod-io/codepod/internal/config"
 	"github.com/codepod-io/codepod/internal/devcon"
 	"github.com/codepod-io/codepod/internal/docker"
@@ -228,10 +229,7 @@ func (m *Manager) Start(name string) (*types.Workspace, error) {
 		return nil, err
 	}
 
-	if workspace.State == types.WorkspaceStateRunning {
-		return workspace, nil
-	}
-
+	// Even if workspace is running, we still need to inject agent if not done
 	// Use UUID for storage binding
 	storageID := workspace.UUID
 	if storageID == "" {
@@ -264,6 +262,12 @@ func (m *Manager) Start(name string) (*types.Workspace, error) {
 
 	if err := m.dockerClient.StartContainer(workspace.Container.Name); err != nil {
 		return nil, err
+	}
+
+	// Inject and start agent
+	if err := m.injectAgent(workspace); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to inject agent: %v\n", err)
+		// Continue without agent failure
 	}
 
 	// Clone repository if specified (for backwards compatibility)
@@ -529,6 +533,65 @@ func (m *Manager) cloneRepository(workspace *types.Workspace) error {
 	if err != nil {
 		return fmt.Errorf("failed to clone repository: %w", err)
 	}
+
+	return nil
+}
+
+// injectAgent injects and starts the agent in the workspace container
+func (m *Manager) injectAgent(workspace *types.Workspace) error {
+	// Get agent binary path
+	agentPath, err := exec.LookPath("codepod-agent")
+	if err != nil {
+		// Try current directory
+		agentPath = "codepod-agent"
+		if _, err := os.Stat(agentPath); os.IsNotExist(err) {
+			return fmt.Errorf("codepod-agent not found: %w", err)
+		}
+	}
+
+	// Get absolute path
+	agentPath, err = filepath.Abs(agentPath)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path: %w", err)
+	}
+
+	// Check if agent already exists in container
+	if agent.AgentExistsInContainer(workspace.Container.Name) {
+		fmt.Printf("Agent already exists in container %s\n", workspace.Container.Name)
+		return nil
+	}
+
+	// Install openssh-server required for agent
+	if err := m.dockerClient.ExecInContainer(workspace.Container.Name, []string{"apt-get", "update"}); err != nil {
+		return fmt.Errorf("failed to update apt: %w", err)
+	}
+	if err := m.dockerClient.ExecInContainer(workspace.Container.Name, []string{"apt-get", "install", "-y", "openssh-server"}); err != nil {
+		return fmt.Errorf("failed to install openssh-server: %w", err)
+	}
+
+	// Copy agent to container
+	if err := agent.CopyToContainer(workspace.Container.Name, agentPath); err != nil {
+		return fmt.Errorf("failed to copy agent to container: %w", err)
+	}
+
+	// Start agent in container
+	agentPort := workspace.Agent.Port
+	if agentPort == 0 {
+		agentPort = 22001
+	}
+
+	// Generate a random password or use default
+	agentPassword := "codepod"
+
+	if err := agent.StartAgentInContainer(workspace.Container.Name, agentPort, agentPassword); err != nil {
+		return fmt.Errorf("failed to start agent in container: %w", err)
+	}
+
+	// Update workspace agent status
+	workspace.Agent.Status = "running"
+	workspace.Agent.Port = agentPort
+
+	fmt.Printf("Agent started on port %d in container %s\n", agentPort, workspace.Container.Name)
 
 	return nil
 }
