@@ -23,6 +23,7 @@ const (
 // Workspace represents a development workspace
 type Workspace struct {
 	Name        string         `yaml:"name"`
+	UUID        string         `yaml:"uuid"`
 	CreatedAt   time.Time      `yaml:"created_at"`
 	UpdatedAt   time.Time      `yaml:"updated_at"`
 	State       WorkspaceState `yaml:"state"`
@@ -34,12 +35,14 @@ type Workspace struct {
 	Agent       Agent          `yaml:"agent"`
 	Port        int            `yaml:"port"`
 	StoragePath string         `yaml:"storage_path"`
+	CodePath    string         `yaml:"code_path"`
 }
 
-// Repository represents a Git repository
+// Repository represents a Git repository or local directory
 type Repository struct {
-	URL    string `yaml:"url"`
-	Branch string `yaml:"branch"`
+	URL       string `yaml:"url"`
+	Branch    string `yaml:"branch"`
+	LocalPath string `yaml:"local_path"`
 }
 
 // IDE represents IDE configuration

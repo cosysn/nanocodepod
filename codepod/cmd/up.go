@@ -24,6 +24,7 @@ var (
 	flagImage       string
 	flagRepoURL     string
 	flagRepoBranch  string
+	flagLocalPath   string
 	flagIDEType     string
 	flagAutoConnect bool
 )
@@ -32,6 +33,7 @@ func init() {
 	upCmd.Flags().StringVar(&flagImage, "image", "ubuntu:22.04", "Docker image to use")
 	upCmd.Flags().StringVar(&flagRepoURL, "repo", "", "Git repository URL")
 	upCmd.Flags().StringVar(&flagRepoBranch, "branch", "main", "Git repository branch")
+	upCmd.Flags().StringVar(&flagLocalPath, "local", "", "Local directory path to use as workspace")
 	upCmd.Flags().StringVar(&flagIDEType, "ide", "vscode", "IDE type (vscode, jetbrains)")
 	upCmd.Flags().BoolVar(&flagAutoConnect, "connect", false, "Auto-connect after starting")
 
@@ -88,8 +90,9 @@ func runUp(cmd *cobra.Command, args []string) error {
 		createOpts := &workspace.CreateOptions{
 			Image: flagImage,
 			Repository: types.Repository{
-				URL:    flagRepoURL,
-				Branch: flagRepoBranch,
+				URL:       flagRepoURL,
+				Branch:    flagRepoBranch,
+				LocalPath: flagLocalPath,
 			},
 			IDE: types.IDE{
 				Type: ideType,
