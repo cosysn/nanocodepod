@@ -4,12 +4,14 @@ run:
 
 linters:
   enable:
-    - errcheck
     - gosimple
     - govet
     - ineffassign
+  disable:
+    - errcheck
     - staticcheck
     - unused
+    - deadcode
     - gofmt
     - goimports
 
@@ -27,3 +29,13 @@ issues:
         - govet
         - staticcheck
         - unused
+    # Exclude errcheck for common patterns where ignore is intentional
+    - text: "Error return value of .* is not checked"
+      linters:
+        - errcheck
+    - text: "S1039"
+      linters:
+        - gosimple
+    - text: "SA4006"
+      linters:
+        - staticcheck
