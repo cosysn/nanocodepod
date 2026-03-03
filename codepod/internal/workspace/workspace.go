@@ -965,11 +965,11 @@ func (m *Manager) findOrCopyAgentToWSL() (string, error) {
 	wslInstance := wsl.New(distro)
 
 	// First check if already exists
-	checkCmd := fmt.Sprintf("test -f %s && echo 'exists' || echo 'not exists'", wslAgentPath)
+	checkCmd := fmt.Sprintf("test -f %s && echo 'exists'", wslAgentPath)
 	fmt.Printf("[DEBUG] Check agent exists: %s\n", checkCmd)
 	output, _ := wslInstance.RunCommand(checkCmd)
-	fmt.Printf("[DEBUG] Agent exists check output: %s\n", output)
-	if strings.Contains(output, "exists") {
+	fmt.Printf("[DEBUG] Agent exists check output: '%s'\n", output)
+	if strings.TrimSpace(output) == "exists" {
 		fmt.Printf("[DEBUG] Agent already exists, returning\n")
 		return wslAgentPath, nil
 	}
