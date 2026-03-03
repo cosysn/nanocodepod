@@ -87,7 +87,7 @@ func TestManager_CreateWorkspaceStorage(t *testing.T) {
 		t.Fatalf("failed to create storage: %v", err)
 	}
 
-	expected := filepath.Join(tmpDir, "workspaces", "test-ws")
+	expected := filepath.Join(tmpDir, "data", "workspaces", "test-ws")
 	if path != expected {
 		t.Errorf("expected %s, got %s", expected, path)
 	}
@@ -107,7 +107,7 @@ func TestManager_GetWorkspaceStorage(t *testing.T) {
 	defer cleanup()
 
 	path := mgr.GetWorkspaceStorage("myproject")
-	expected := filepath.Join(tmpDir, "workspaces", "myproject")
+	expected := filepath.Join(tmpDir, "data", "workspaces", "myproject")
 
 	if path != expected {
 		t.Errorf("expected %s, got %s", expected, path)
