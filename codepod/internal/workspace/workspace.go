@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -978,18 +979,15 @@ func (m *Manager) findOrCopyAgentToWSL() (string, error) {
 	}
 
 	// Copy to WSL agent directory
-	// Use wsl.CopyToWSL which handles Windows to WSL file copy properly
-	fmt.Printf("[DEBUG] Copying agent from %s to %s\n", localAgentPath, wslAgentPath)
-	err = wslInstance.CopyToWSL(localAgentPath, wslAgentPath)
+	// Use \\wsl$\<distro>\ path to copy directly from Windows
+	distro = wsl.GetWSLDistributionFromConfig()
+	windowsWSLPath := fmt.Sprintf("\\\\wsl$\\%s%s", distro, wslAgentPath)
+	fmt.Printf("[DEBUG] Copying agent from %s to %s\n", localAgentPath, windowsWSLPath)
+
+	// Copy file using Windows file system
+	err = copyFile(localAgentPath, windowsWSLPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to copy agent to WSL: %w", err)
-	}
-
-	// Make executable
-	chmodCmd := fmt.Sprintf("chmod +x %s", wslAgentPath)
-	_, err = wslInstance.RunCommand(chmodCmd)
-	if err != nil {
-		return "", fmt.Errorf("failed to chmod agent: %w", err)
 	}
 
 	return wslAgentPath, nil
@@ -1004,4 +1002,28 @@ func getCurrentUser() string {
 		return user
 	}
 	return "ubuntu"
+}
+
+// copyFile copies a file from src to dst
+func copyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	// Create destination directory if needed
+	dstDir := filepath.Dir(dst)
+	if err := os.MkdirAll(dstDir, 0755); err != nil {
+		return err
+	}
+
+	destFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, sourceFile)
+	return err
 }
