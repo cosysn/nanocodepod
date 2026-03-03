@@ -6,9 +6,9 @@ REM Requires Go (tested with 1.25.4)
 setlocal EnableDelayedExpansion
 
 set OUTPUT_DIR=dist
+set PLATFORM=all
 
 REM Parse arguments
-set "PLATFORM=all"
 if not "%1"=="" set "PLATFORM=%1"
 if not "%2"=="" set "OUTPUT_DIR=%2"
 
@@ -37,40 +37,11 @@ echo Building for: windows/amd64, windows/arm64, linux/amd64, linux/arm64
 echo Output directory: %OUTPUT_DIR%
 echo.
 
-REM Set platform list
-set "PLATFORMS=windows/amd64,windows/arm64,linux/amd64,linux/arm64"
-if /i "%PLATFORM%"=="windows" set "PLATFORMS=windows/amd64,windows/arm64"
-if /i "%PLATFORM%"=="linux" set "PLATFORMS=linux/amd64,linux/arm64"
-
-REM Build codepod CLI
-for %%p in (%PLATFORMS%) do (
-    for /f "tokens=1,2 delims=/" %%a in ("%%p") do (
-        if "%%a"=="windows" set "EXT=.exe"
-        if "%%a"=="linux" set "EXT="
-        echo Building codepod%%EXT% (%%a/%%b)...
-        go build -o "%OUTPUT_DIR%\codepod%%EXT%" -ldflags "-s -w" .
-        if errorlevel 1 (
-            echo Error: Failed to build codepod for %%a/%%b
-            exit /b 1
-        )
-        echo   -^> %OUTPUT_DIR%\codepod%%EXT%
-    )
-)
-
-REM Build codepod-agent
-for %%p in (%PLATFORMS%) do (
-    for /f "tokens=1,2 delims=/" %%a in ("%%p") do (
-        if "%%a"=="windows" set "EXT=.exe"
-        if "%%a"=="linux" set "EXT="
-        echo Building codepod-agent%%EXT% (%%a/%%b)...
-        go build -o "%OUTPUT_DIR%\codepod-agent%%EXT%" -ldflags "-s -w" ./cmd/agent
-        if errorlevel 1 (
-            echo Error: Failed to build codepod-agent for %%a/%%b
-            exit /b 1
-        )
-        echo   -^> %OUTPUT_DIR%\codepod-agent%%EXT%
-    )
-)
+REM Build for each platform
+call :build_one windows amd64 .exe
+call :build_one windows arm64 .exe
+call :build_one linux amd64
+call :build_one linux arm64
 
 echo.
 echo ========================================
@@ -81,3 +52,32 @@ echo ========================================
 dir /b "%OUTPUT_DIR%"
 
 endlocal
+exit /b 0
+
+:build_one
+set "GOOS=%1"
+set "GOARCH=%2"
+set "EXT=%3"
+
+if "%GOOS%"=="windows" (
+    echo Building codepod%EXT% (%GOOS%/%GOARCH%)...
+    go build -o "%OUTPUT_DIR%\codepod%EXT%" -ldflags "-s -w" .
+    if errorlevel 1 goto :build_error
+
+    echo Building codepod-agent%EXT% (%GOOS%/%GOARCH%)...
+    go build -o "%OUTPUT_DIR%\codepod-agent%EXT%" -ldflags "-s -w" ./cmd/agent
+    if errorlevel 1 goto :build_error
+) else (
+    echo Building codepod-%GOARCH% (%GOOS%/%GOARCH%)...
+    go build -o "%OUTPUT_DIR%\codepod-%GOARCH%" -ldflags "-s -w" .
+    if errorlevel 1 goto :build_error
+
+    echo Building codepod-agent-%GOARCH% (%GOOS%/%GOARCH%)...
+    go build -o "%OUTPUT_DIR%\codepod-agent-%GOARCH%" -ldflags "-s -w" ./cmd/agent
+    if errorlevel 1 goto :build_error
+)
+exit /b 0
+
+:build_error
+echo Error: Failed to build for %GOOS%/%GOARCH%
+exit /b 1
