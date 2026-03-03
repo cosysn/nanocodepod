@@ -584,13 +584,35 @@ type CreateOptions struct {
 
 // GetWorkspaceDir returns the workspace directory
 func getWorkspacesDir() (string, error) {
-	configDir, err := config.GetConfigDir()
-	if err != nil {
-		return "", err
+	// Use data_dir from config
+	cfg, err := config.LoadConfig()
+	if err != nil || cfg.DataDir == "" {
+		// Fallback to old behavior
+		configDir, err := config.GetConfigDir()
+		if err != nil {
+			return "", err
+		}
+		workspacesDir := filepath.Join(configDir, "workspaces")
+		if err := os.MkdirAll(workspacesDir, 0755); err != nil {
+			return "", err
+		}
+		return workspacesDir, nil
 	}
-	workspacesDir := filepath.Join(configDir, "workspaces")
-	if err := os.MkdirAll(workspacesDir, 0755); err != nil {
-		return "", err
+	// Use data_dir from config
+	workspacesDir := filepath.Join(cfg.DataDir, "workspaces")
+	if runtime.GOOS == "windows" {
+		// Create in WSL
+		distro := wsl.GetWSLDistributionFromConfig()
+		wslInstance := wsl.New(distro)
+		mkdirCmd := fmt.Sprintf("mkdir -p %s", workspacesDir)
+		_, err := wslInstance.RunCommand(mkdirCmd)
+		if err != nil {
+			return "", fmt.Errorf("failed to create workspaces dir in WSL: %w", err)
+		}
+	} else {
+		if err := os.MkdirAll(workspacesDir, 0755); err != nil {
+			return "", err
+		}
 	}
 	return workspacesDir, nil
 }
