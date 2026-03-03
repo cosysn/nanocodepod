@@ -643,28 +643,15 @@ func (g *grpcHandler) GetStatus(ctx context.Context, req *proto.StatusRequest) (
 	}, nil
 }
 
-// reapZombies reaps zombie processes
-// This is essential when running as PID 0 (init process)
+// reapZombies calls the platform-specific implementation
 func reapZombies() {
-	for {
-		var status syscall.WaitStatus
-		pid, err := syscall.Wait4(-1, &status, syscall.WNOHANG, nil)
-		if err != nil {
-			// No more children to reap, sleep briefly and try again
-			time.Sleep(100 * time.Millisecond)
-			continue
-		}
-		if pid <= 0 {
-			// No children to reap, sleep briefly
-			time.Sleep(100 * time.Millisecond)
-		}
-	}
+	reapZombiesLinux()
 }
 
 // handleSignals handles shutdown signals for graceful termination
 func handleSignals() {
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
 	for {
 		sig := <-sigChan
