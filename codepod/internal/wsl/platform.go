@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+
+	"github.com/codepod-io/codepod/internal/config"
 )
 
 // PlatformType represents the platform type
@@ -248,19 +250,26 @@ func GetDockerAccessModeDebug() string {
 	return result
 }
 
+// GetWSLDistributionFromConfig returns the WSL distribution name from config
+func GetWSLDistributionFromConfig() string {
+	// Try to load config
+	cfg, err := config.LoadConfig()
+	if err == nil && cfg.WSL.Distribution != "" {
+		return cfg.WSL.Distribution
+	}
+	// Fallback to environment variable
+	distro := os.Getenv("WSL_DISTRO_NAME")
+	if distro != "" {
+		return distro
+	}
+	// Fallback to default
+	return "Ubuntu-22.04"
+}
+
 // IsDockerAvailableInWSL checks if Docker is available in any WSL distribution
 func IsDockerAvailableInWSL() bool {
-	// Get default WSL distribution
-	distro := os.Getenv("WSL_DISTRO_NAME")
-	if distro == "" {
-		// Try to get from wsl.exe -l -q
-		distros, _ := ListDistributions()
-		if len(distros) > 0 {
-			distro = distros[0]
-		} else {
-			distro = "Ubuntu"
-		}
-	}
+	// Get WSL distribution from config
+	distro := GetWSLDistributionFromConfig()
 
 	// Try to run docker info in WSL
 	wslInstance := New(distro)
@@ -271,18 +280,8 @@ func IsDockerAvailableInWSL() bool {
 // IsDockerAvailableInWSLDebug returns detailed debug info for WSL Docker check
 func IsDockerAvailableInWSLDebug() string {
 	result := ""
-	distro := os.Getenv("WSL_DISTRO_NAME")
-	if distro == "" {
-		distros, _ := ListDistributions()
-		result += fmt.Sprintf("WSL_DISTRO_NAME env var: (empty)\n")
-		result += fmt.Sprintf("ListDistributions(): %v\n", distros)
-		if len(distros) > 0 {
-			distro = distros[0]
-		} else {
-			distro = "Ubuntu"
-		}
-	}
-	result += fmt.Sprintf("Testing distribution: %s\n", distro)
+	distro := GetWSLDistributionFromConfig()
+	result += fmt.Sprintf("WSL Distribution (from config): %s\n", distro)
 
 	wslInstance := New(distro)
 	output, err := wslInstance.RunCommand("docker info")
@@ -293,18 +292,15 @@ func IsDockerAvailableInWSLDebug() string {
 
 // GetWSLDistributionWithDocker returns the WSL distribution name that has Docker available
 func GetWSLDistributionWithDocker() (string, error) {
-	// Get default WSL distribution first
-	distro := os.Getenv("WSL_DISTRO_NAME")
-	if distro == "" {
-		distro = "Ubuntu"
-	}
+	// Get WSL distribution from config first
+	distro := GetWSLDistributionFromConfig()
 
 	wsl := New(distro)
 	if wsl.IsDockerRunning() {
 		return distro, nil
 	}
 
-	// If default doesn't have Docker, try to find one that does
+	// If config distribution doesn't have Docker, try to find one that does
 	distros, err := ListDistributions()
 	if err == nil {
 		for _, d := range distros {
