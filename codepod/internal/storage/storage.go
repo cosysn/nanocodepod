@@ -37,14 +37,22 @@ func New(platform *wsl.Platform) (*Manager, error) {
 		fmt.Printf("[DEBUG] Using data_dir from config: %s\n", cfg.DataDir)
 	}
 
+	fmt.Printf("[DEBUG] Storage basePath: %s\n", basePath)
+	fmt.Printf("[DEBUG] GOOS: %s\n", runtime.GOOS)
+
 	// Convert Windows path to WSL path if on Windows
 	if runtime.GOOS == "windows" {
 		wslPath = wsl.WindowsPathToWSLPath(basePath)
+		fmt.Printf("[DEBUG] WSL path (converted): %s\n", wslPath)
+
 		// Create directory in WSL
 		distro := wsl.GetWSLDistributionFromConfig()
+		fmt.Printf("[DEBUG] WSL distro: %s\n", distro)
 		wslInstance := wsl.New(distro)
 		mkdirCmd := fmt.Sprintf("mkdir -p %s", wslPath)
-		_, err := wslInstance.RunCommand(mkdirCmd)
+		fmt.Printf("[DEBUG] Running WSL command: %s\n", mkdirCmd)
+		output, err := wslInstance.RunCommand(mkdirCmd)
+		fmt.Printf("[DEBUG] WSL mkdir output: %s, err: %v\n", output, err)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create storage directory in WSL: %w", err)
 		}
