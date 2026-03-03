@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/codepod-io/codepod/internal/config"
 	"github.com/codepod-io/codepod/internal/wsl"
@@ -11,8 +12,9 @@ import (
 
 // Manager handles persistent storage for workspaces
 type Manager struct {
-	basePath string
-	platform *wsl.Platform
+	basePath   string
+	wslPath    string // WSL-compatible path
+	platform   *wsl.Platform
 }
 
 // New creates a new storage manager
@@ -20,6 +22,7 @@ func New(platform *wsl.Platform) (*Manager, error) {
 	// Load config to get data directory
 	cfg, err := config.LoadConfig()
 	var basePath string
+	var wslPath string
 
 	if err != nil || cfg.DataDir == "" {
 		// Fallback to old behavior
@@ -34,12 +37,28 @@ func New(platform *wsl.Platform) (*Manager, error) {
 		fmt.Printf("[DEBUG] Using data_dir from config: %s\n", cfg.DataDir)
 	}
 
-	if err := os.MkdirAll(basePath, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create storage directory: %w", err)
+	// Convert Windows path to WSL path if on Windows
+	if runtime.GOOS == "windows" {
+		wslPath = wsl.WindowsPathToWSLPath(basePath)
+		// Create directory in WSL
+		distro := wsl.GetWSLDistributionFromConfig()
+		wslInstance := wsl.New(distro)
+		mkdirCmd := fmt.Sprintf("mkdir -p %s", wslPath)
+		_, err := wslInstance.RunCommand(mkdirCmd)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create storage directory in WSL: %w", err)
+		}
+		fmt.Printf("[DEBUG] Created storage in WSL: %s\n", wslPath)
+	} else {
+		if err := os.MkdirAll(basePath, 0755); err != nil {
+			return nil, fmt.Errorf("failed to create storage directory: %w", err)
+		}
+		wslPath = basePath
 	}
 
 	return &Manager{
 		basePath: basePath,
+		wslPath:  wslPath,
 		platform: platform,
 	}, nil
 }
@@ -47,6 +66,31 @@ func New(platform *wsl.Platform) (*Manager, error) {
 // CreateWorkspaceStorage creates storage for a new workspace
 func (m *Manager) CreateWorkspaceStorage(workspaceName string) (string, error) {
 	workspacePath := filepath.Join(m.basePath, workspaceName)
+	wslWorkspacePath := filepath.Join(m.wslPath, workspaceName)
+
+	if runtime.GOOS == "windows" {
+		// Create in WSL
+		distro := wsl.GetWSLDistributionFromConfig()
+		wslInstance := wsl.New(distro)
+		mkdirCmd := fmt.Sprintf("mkdir -p %s", wslWorkspacePath)
+		_, err := wslInstance.RunCommand(mkdirCmd)
+		if err != nil {
+			return "", fmt.Errorf("failed to create workspace directory in WSL: %w", err)
+		}
+
+		// Create subdirectories in WSL
+		subdirs := []string{"data", "home", "keys", "projects"}
+		for _, subdir := range subdirs {
+			subdirPath := filepath.Join(wslWorkspacePath, subdir)
+			mkdirCmd := fmt.Sprintf("mkdir -p %s", subdirPath)
+			_, err := wslInstance.RunCommand(mkdirCmd)
+			if err != nil {
+				return "", fmt.Errorf("failed to create subdirectory %s: %w", subdir, err)
+			}
+		}
+
+		return wslWorkspacePath, nil
+	}
 
 	if err := os.MkdirAll(workspacePath, 0755); err != nil {
 		return "", fmt.Errorf("failed to create workspace directory: %w", err)
@@ -66,6 +110,9 @@ func (m *Manager) CreateWorkspaceStorage(workspaceName string) (string, error) {
 
 // GetWorkspaceStorage returns the storage path for a workspace
 func (m *Manager) GetWorkspaceStorage(workspaceName string) string {
+	if runtime.GOOS == "windows" {
+		return filepath.Join(m.wslPath, workspaceName)
+	}
 	return filepath.Join(m.basePath, workspaceName)
 }
 
