@@ -52,6 +52,7 @@ jobs:
         with:
           version: latest
           args: --timeout=5m
+          working-directory: codepod
 
   security:
     runs-on: ubuntu-latest
@@ -64,7 +65,7 @@ jobs:
           go-version: '1.24'
 
       - name: Run govulncheck
+        working-directory: codepod
         run: |
-          cd codepod
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./... || true
