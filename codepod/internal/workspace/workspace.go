@@ -937,13 +937,16 @@ func (m *Manager) findOrCopyAgentToWSL() (string, error) {
 
 	// Check if agent exists in the same directory
 	localAgentPath := filepath.Join(execDir, agentFilename)
+	fmt.Printf("[DEBUG] Looking for agent: %s\n", localAgentPath)
 	if _, err := os.Stat(localAgentPath); err != nil {
 		// Try without dash (some builds use codepod-agent-amd64, some use codepod-agentamd64)
 		localAgentPath = filepath.Join(execDir, "codepod-agent-"+arch)
+		fmt.Printf("[DEBUG] Trying agent: %s\n", localAgentPath)
 		if _, err := os.Stat(localAgentPath); err != nil {
 			return "", fmt.Errorf("agent binary %s not found in %s", agentFilename, execDir)
 		}
 	}
+	fmt.Printf("[DEBUG] Found agent at: %s\n", localAgentPath)
 
 	// Get data directory from config, default to /root/.codepod
 	dataDir := m.config.DataDir
@@ -952,8 +955,9 @@ func (m *Manager) findOrCopyAgentToWSL() (string, error) {
 	}
 
 	// Target path in WSL (agent subdirectory under data dir)
-	wslAgentDir := filepath.ToSlash(filepath.Join(dataDir, "agent"))
-	wslAgentPath := filepath.ToSlash(filepath.Join(wslAgentDir, "codepod-agent"))
+	wslAgentDir := strings.Join([]string{dataDir, "agent"}, "/")
+	wslAgentPath := strings.Join([]string{wslAgentDir, "codepod-agent"}, "/")
+	fmt.Printf("[DEBUG] Target WSL path: %s\n", wslAgentPath)
 
 	// Copy to WSL
 	distro := wsl.GetWSLDistributionFromConfig()
@@ -974,7 +978,11 @@ func (m *Manager) findOrCopyAgentToWSL() (string, error) {
 	}
 
 	// Copy to WSL agent directory
-	copyCmd := fmt.Sprintf("cp %s %s && chmod +x %s", localAgentPath, wslAgentPath, wslAgentPath)
+	// First copy to /tmp, then move to final location
+	// WSL can't access Windows paths directly, so we need this workaround
+	tmpAgentPath := "/tmp/codepod-agent"
+	copyCmd := fmt.Sprintf("cp %s %s && chmod +x %s && mv %s %s", localAgentPath, tmpAgentPath, tmpAgentPath, tmpAgentPath, wslAgentPath)
+	fmt.Printf("[DEBUG] Copy command: %s\n", copyCmd)
 	_, err = wslInstance.RunCommand(copyCmd)
 	if err != nil {
 		return "", fmt.Errorf("failed to copy agent to WSL: %w", err)
