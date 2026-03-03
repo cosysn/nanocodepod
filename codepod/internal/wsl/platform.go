@@ -258,9 +258,15 @@ func GetDockerAccessModeDebug() string {
 func GetWSLDistributionFromConfig() string {
 	// Try to load config
 	cfg, err := config.LoadConfig()
-	if err == nil && cfg.WSL.Distribution != "" {
-		fmt.Printf("[DEBUG] Using WSL distribution from config: %s\n", cfg.WSL.Distribution)
-		return cfg.WSL.Distribution
+	if err != nil {
+		fmt.Printf("[DEBUG] LoadConfig error: %v\n", err)
+	} else if cfg == nil {
+		fmt.Printf("[DEBUG] LoadConfig returned nil\n")
+	} else {
+		fmt.Printf("[DEBUG] LoadConfig success, WSL.Distribution='%s', DataDir='%s'\n", cfg.WSL.Distribution, cfg.DataDir)
+		if cfg.WSL.Distribution != "" {
+			return cfg.WSL.Distribution
+		}
 	}
 	// Fallback to environment variable
 	distro := os.Getenv("WSL_DISTRO_NAME")
