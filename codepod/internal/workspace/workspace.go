@@ -1031,10 +1031,15 @@ func copyFile(src, dst string) error {
 
 	destFile, err := os.Create(dst)
 	if err != nil {
+		fmt.Printf("[DEBUG] copyFile: failed to create dst: %v\n", err)
 		return err
 	}
 	defer destFile.Close()
 
 	_, err = io.Copy(destFile, sourceFile)
+	if err != nil {
+		fmt.Printf("[DEBUG] copyFile: failed to copy: %v\n", err)
+	}
+	fmt.Printf("[DEBUG] copyFile: success\n")
 	return err
 }
