@@ -222,8 +222,6 @@ func (m *Manager) Create(name string, opts *CreateOptions) (*types.Workspace, er
 		Labels:  map[string]string{"codepod.workspace": name},
 		PortBindings: map[string][]docker.PortBinding{
 			"22/tcp": {{HostIP: "0.0.0.0", HostPort: fmt.Sprintf("%d", allocatedPort)}},
-			// gRPC port mapping (container:23 -> host:allocatedPort+1)
-			"23/tcp": {{HostIP: "0.0.0.0", HostPort: fmt.Sprintf("%d", allocatedPort+1)}},
 		},
 		Binds: []string{
 			m.storage.BindWSLStorage(workspaceUUID, "/workspace"),
@@ -340,8 +338,6 @@ func (m *Manager) Start(name string, injectAgent bool) (*types.Workspace, error)
 			Labels:  map[string]string{"codepod.workspace": name},
 			PortBindings: map[string][]docker.PortBinding{
 				"22/tcp": {{HostIP: "0.0.0.0", HostPort: fmt.Sprintf("%d", workspace.Port)}},
-				// gRPC port mapping (container:23 -> host:workspace.Port+1)
-				"23/tcp": {{HostIP: "0.0.0.0", HostPort: fmt.Sprintf("%d", workspace.Port+1)}},
 			},
 			Binds: []string{
 				m.storage.BindWSLStorage(storageID, "/workspace"),

@@ -170,6 +170,111 @@ func TestCLI_StartWithoutAgent(t *testing.T) {
 	cmd.Output()
 }
 
+// TestCLI_AgentSinglePort tests that agent uses single port for both SSH and gRPC
+func TestCLI_AgentSinglePort(t *testing.T) {
+	binary := getBinaryPath()
+	workspaceName := "e2e-single-port"
+
+	// Cleanup
+	cmd := exec.Command(binary, "delete", workspaceName)
+	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
+	cmd.Output()
+	time.Sleep(1 * time.Second)
+
+	// Create workspace with agent
+	cmd = exec.Command(binary, "up", workspaceName, "--image", "ubuntu:22.04")
+	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("up failed: %v, output: %s", err, string(out))
+	}
+	time.Sleep(2 * time.Second)
+
+	// Get container port mappings
+	dockerCmd := exec.Command("docker", "port", fmt.Sprintf("codepod-%s", workspaceName))
+	out, err = dockerCmd.Output()
+	if err != nil {
+		t.Fatalf("docker port failed: %v", err)
+	}
+
+	portOutput := string(out)
+	t.Logf("Port mappings: %s", portOutput)
+
+	// Should only have port 22 mapped (not 23)
+	port22Count := strings.Count(portOutput, "22/tcp")
+	port23Count := strings.Count(portOutput, "23/tcp")
+
+	if port22Count == 0 {
+		t.Error("expected port 22/tcp to be mapped")
+	}
+	if port23Count > 0 {
+		t.Errorf("expected only one port (22/tcp), but found port 23/tcp mapping")
+	}
+
+	// Cleanup
+	cmd = exec.Command(binary, "delete", workspaceName)
+	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
+	cmd.Output()
+}
+
+// TestCLI_AgentSSHConnection tests SSH connection on agent port
+func TestCLI_AgentSSHConnection(t *testing.T) {
+	binary := getBinaryPath()
+	workspaceName := "e2e-ssh-conn"
+
+	// Cleanup
+	cmd := exec.Command(binary, "delete", workspaceName)
+	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
+	cmd.Output()
+	time.Sleep(1 * time.Second)
+
+	// Create workspace with agent
+	cmd = exec.Command(binary, "up", workspaceName, "--image", "ubuntu:22.04")
+	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("up failed: %v, output: %s", err, string(out))
+	}
+	time.Sleep(3 * time.Second)
+
+	// Get the port
+	dockerCmd := exec.Command("docker", "port", fmt.Sprintf("codepod-%s", workspaceName), "22/tcp")
+	out, err = dockerCmd.Output()
+	if err != nil {
+		t.Fatalf("docker port failed: %v", err)
+	}
+
+	// Parse port (format: 0.0.0.0:22001)
+	portLine := strings.TrimSpace(string(out))
+	if !strings.Contains(portLine, ":") {
+		t.Fatalf("unexpected port format: %s", portLine)
+	}
+	hostPort := strings.Split(portLine, ":")[1]
+	t.Logf("Agent port: %s", hostPort)
+
+	// Try to connect via SSH (will fail auth but should connect)
+	sshCmd := exec.Command("ssh", "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes",
+		"-p", hostPort, "root@localhost", "echo test")
+	sshCmd.Dir = "/home/ubuntu/nanocodepod/codepod"
+	_, err = sshCmd.Output()
+	// We expect auth failure (not connection refused), which means SSH is listening
+	if err != nil {
+		errStr := err.Error()
+		if strings.Contains(errStr, "Connection refused") {
+			t.Errorf("SSH should be listening on port %s", hostPort)
+		}
+		// Auth failure is expected since we don't have password
+		if !strings.Contains(errStr, "Permission denied") && !strings.Contains(errStr, "auth") {
+			t.Logf("SSH connection attempt error: %s", errStr)
+		}
+	}
+
+	// Cleanup
+	cmd = exec.Command(binary, "delete", workspaceName)
+	cmd.Dir = "/home/ubuntu/nanocodepod/codepod"
+	cmd.Output()
+}
+
 // TestCLI_AgentHelp tests that agent flags are shown in help
 func TestCLI_AgentHelp(t *testing.T) {
 	binary := getBinaryPath()

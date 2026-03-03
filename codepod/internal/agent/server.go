@@ -491,34 +491,26 @@ func RunAgent(port int, password string) error {
 	}
 	sshConfig.AddHostKey(signer)
 
-	// Create single listener for both SSH and gRPC
+	// Create single listener for both SSH and gRPC using protocol multiplexing
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		return fmt.Errorf("failed to listen on port %d: %w", port, err)
 	}
 
-	// Create gRPC server on port+1
-	grpcPort := port + 1
-	grpcListener, err := net.Listen("tcp", fmt.Sprintf(":%d", grpcPort))
-	if err != nil {
-		fmt.Printf("Warning: failed to start gRPC listener on port %d: %v\n", grpcPort, err)
-	} else {
-		grpcServer := grpc.NewServer()
-		proto.RegisterAgentServer(grpcServer, &grpcHandler{port: port, startTime: time.Now()})
-		fmt.Printf("Agent gRPC server started on port %d\n", grpcPort)
-		go grpcServer.Serve(grpcListener)
-	}
+	// Create gRPC server for protocol multiplexing
+	grpcServer := grpc.NewServer()
+	proto.RegisterAgentServer(grpcServer, &grpcHandler{port: port, startTime: time.Now()})
 
-	fmt.Println("Agent SSH server started on port", port)
+	fmt.Printf("Agent started on port %d (SSH+gRPC multiplexed)\n", port)
 
-	// Accept SSH connections
+	// Accept connections and route based on protocol detection
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
 			break
 		}
 
-		go handleSSHConnection(conn, sshConfig, nil)
+		go handleMultiplexedConnection(conn, sshConfig, grpcServer)
 	}
 
 	return nil
