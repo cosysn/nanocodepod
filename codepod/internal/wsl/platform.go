@@ -327,37 +327,8 @@ func GetWSLDistributionWithDocker() (string, error) {
 	return "", fmt.Errorf("no WSL distribution with Docker found")
 }
 
-// WindowsPathToWSLPath converts a Windows path to a WSL-compatible path
+// WindowsPathToWSLPath returns the path as-is for WSL
+// If user configures WSL path (e.g., /data/.codepod), use it directly
 func WindowsPathToWSLPath(windowsPath string) string {
-	// Convert Windows path to WSL path format
-	// C:\path -> /mnt/c/path
-	windowsPath = strings.TrimSpace(windowsPath)
-
-	fmt.Printf("[DEBUG] WindowsPathToWSLPath input: %s\n", windowsPath)
-
-	// Handle drive letter (e.g., C:\ or C:)
-	if len(windowsPath) >= 2 && windowsPath[1] == ':' {
-		drive := strings.ToLower(string(windowsPath[0]))
-		rest := windowsPath[2:]
-		// Remove leading backslash if present
-		rest = strings.TrimPrefix(rest, "\\")
-		// Replace backslashes with forward slashes
-		rest = strings.ReplaceAll(rest, "\\", "/")
-		result := fmt.Sprintf("/mnt/%s/%s", drive, rest)
-		fmt.Printf("[DEBUG] WindowsPathToWSLPath output: %s\n", result)
-		return result
-	}
-
-	// Handle paths without drive letter (e.g., \data\... or /data/...)
-	// Convert backslashes to forward slashes
-	windowsPath = strings.ReplaceAll(windowsPath, "\\", "/")
-	result := windowsPath
-
-	// Ensure absolute path - add leading slash if not present
-	if !strings.HasPrefix(result, "/") {
-		result = "/" + result
-	}
-
-	fmt.Printf("[DEBUG] WindowsPathToWSLPath output (no drive): %s\n", result)
-	return result
+	return windowsPath
 }

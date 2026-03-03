@@ -81,3 +81,46 @@ func TestGetVSCodeWebURL(t *testing.T) {
 		t.Error("url should not be empty")
 	}
 }
+
+func TestLauncher_New(t *testing.T) {
+	launcher := New()
+	if launcher == nil {
+		t.Error("New() should not return nil")
+	}
+}
+
+func TestLauncher_Launch(t *testing.T) {
+	launcher := New()
+
+	// Test with VSCode type
+	workspace := &types.Workspace{
+		Name: "test-workspace",
+		Port: 22000,
+		IDE: types.IDE{
+			Type: types.IDETypeVSCode,
+		},
+	}
+
+	// This will try to launch VS Code, may fail in test environment
+	// Just ensure it doesn't panic
+	err := launcher.Launch(workspace)
+	_ = err // May fail in test, that's ok
+}
+
+func TestLauncher_LaunchJetBrains(t *testing.T) {
+	launcher := New()
+
+	workspace := &types.Workspace{
+		Name: "test-workspace",
+		IDE: types.IDE{
+			Type: types.IDETypeJetBrains,
+			Settings: map[string]string{
+				"ide": "idea",
+			},
+		},
+	}
+
+	// This will try to launch JetBrains, may fail in test environment
+	err := launcher.Launch(workspace)
+	_ = err // May fail in test, that's ok
+}

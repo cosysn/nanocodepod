@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/codepod-io/codepod/internal/docker"
@@ -83,6 +84,40 @@ func (m *MockDockerClientForTest) ExecInContainer(name string, cmd []string) err
 
 func (m *MockDockerClientForTest) Close() error {
 	return nil
+}
+
+func (m *MockDockerClientForTest) ListContainers() ([]docker.Container, error) {
+	var result []docker.Container
+	for _, c := range m.Containers {
+		result = append(result, docker.Container{
+			ID:     c.Name,
+			Names:  c.Name,
+			Status: "running",
+			Image:  c.Image,
+		})
+	}
+	return result, nil
+}
+
+func (m *MockDockerClientForTest) PullImage(image string) error {
+	return nil
+}
+
+func (m *MockDockerClientForTest) GetContainerIP(name string) (string, error) {
+	return "172.17.0.2", nil
+}
+
+func (m *MockDockerClientForTest) GetContainerByName(name string) (*docker.Container, error) {
+	c, ok := m.Containers[name]
+	if !ok {
+		return nil, fmt.Errorf("container %s not found", name)
+	}
+	return &docker.Container{
+		ID:     c.Name,
+		Names:  c.Name,
+		Status: "running",
+		Image:  c.Image,
+	}, nil
 }
 
 // TestCreateWithMock tests creating workspace with mock Docker client

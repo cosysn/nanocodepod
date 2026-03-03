@@ -1,7 +1,12 @@
 package workspace
 
 import (
+	"fmt"
+
 	"github.com/codepod-io/codepod/internal/docker"
+	"github.com/codepod-io/codepod/internal/port"
+	"github.com/codepod-io/codepod/internal/storage"
+	"github.com/codepod-io/codepod/internal/wsl"
 )
 
 // MockDockerClient is a mock implementation of DockerClient for testing
@@ -104,5 +109,97 @@ func (m *MockDockerClient) Close() error {
 	if m.CloseFunc != nil {
 		return m.CloseFunc()
 	}
+	return nil
+}
+
+func (m *MockDockerClient) ExecInContainerDetached(name string, cmd []string) error {
+	return nil
+}
+
+func (m *MockDockerClient) CopyToContainer(containerID, src, dest string) error {
+	return nil
+}
+
+func (m *MockDockerClient) CommitContainer(containerName, imageName string) error {
+	return nil
+}
+
+func (m *MockDockerClient) ListContainers() ([]docker.Container, error) {
+	var result []docker.Container
+	for _, c := range m.Containers {
+		result = append(result, docker.Container{
+			ID:     c.Name,
+			Names:  c.Name,
+			Status: "running",
+			Image:  c.Image,
+		})
+	}
+	return result, nil
+}
+
+func (m *MockDockerClient) PullImage(image string) error {
+	return nil
+}
+
+func (m *MockDockerClient) GetContainerIP(name string) (string, error) {
+	return "172.17.0.2", nil
+}
+
+func (m *MockDockerClient) GetContainerByName(name string) (*docker.Container, error) {
+	c, ok := m.Containers[name]
+	if !ok {
+		return nil, fmt.Errorf("container %s not found", name)
+	}
+	return &docker.Container{
+		ID:     c.Name,
+		Names:  c.Name,
+		Status: "running",
+		Image:  c.Image,
+	}, nil
+}
+
+// MockPlatform is a mock implementation of WSL platform for testing
+type MockPlatform struct {
+	PlatformType        wsl.PlatformType
+	Hostname            string
+	RunCmdResult        string
+	RunCmdError         error
+	FileExistsResult    bool
+	StorageManager      *storage.Manager
+	PortPool            *port.Pool
+}
+
+func NewMockPlatform() *MockPlatform {
+	return &MockPlatform{
+		PlatformType: wsl.PlatformLinux,
+		Hostname:    "test-host",
+	}
+}
+
+func (m *MockPlatform) GetType() wsl.PlatformType {
+	return m.PlatformType
+}
+
+func (m *MockPlatform) GetDistribution() string {
+	return "Ubuntu-22.04"
+}
+
+func (m *MockPlatform) GetHostname() (string, error) {
+	return m.Hostname, nil
+}
+
+func (m *MockPlatform) RunCommand(cmd string) (string, error) {
+	return m.RunCmdResult, m.RunCmdError
+}
+
+func (m *MockPlatform) FileExists(path string) bool {
+	return m.FileExistsResult
+}
+
+func (m *MockPlatform) CopyToWSL(src, dest string) error {
+	return nil
+}
+
+func (m *MockPlatform) CopyFromWSL(src, dest string) error {
 	return nil
 }

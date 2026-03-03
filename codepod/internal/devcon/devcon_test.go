@@ -3,6 +3,7 @@ package devcon
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -99,5 +100,51 @@ func TestHasDevcontainer(t *testing.T) {
 	// Test non-existing
 	if d.HasDevcontainer("/nonexistent") {
 		t.Error("should return false for non-existent path")
+	}
+}
+
+func TestExtractImageName(t *testing.T) {
+	d := &Devcon{}
+
+	tests := []struct {
+		output    string
+		fallback  string
+		expected  string
+	}{
+		{"Image built: myimage:latest\n", "", "myimage:latest"},
+		{"Some output\nImage built: custom:tag\n", "", "custom:tag"},
+		{"No image line here", "fallback:tag", "fallback:tag"},
+		{"", "", "devcontainer:latest"},
+	}
+
+	for _, tt := range tests {
+		result := d.extractImageName(tt.output, tt.fallback)
+		if result != tt.expected {
+			t.Errorf("extractImageName(%q, %q) = %q, want %q", tt.output, tt.fallback, result, tt.expected)
+		}
+	}
+}
+
+func TestGetDevcontainerConfig(t *testing.T) {
+	d := &Devcon{}
+
+	// Create temp dir with .devcontainer.json
+	tmpDir := t.TempDir()
+	devcontainerPath := filepath.Join(tmpDir, ".devcontainer.json")
+	content := `{"name": "test", "image": "ubuntu:latest"}`
+	os.WriteFile(devcontainerPath, []byte(content), 0644)
+
+	config, err := d.GetDevcontainerConfig(tmpDir)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if !strings.Contains(config, "ubuntu:latest") {
+		t.Error("expected config to contain ubuntu:latest")
+	}
+
+	// Test non-existing
+	_, err = d.GetDevcontainerConfig("/nonexistent")
+	if err == nil {
+		t.Error("expected error for non-existent path")
 	}
 }
