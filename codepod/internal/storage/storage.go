@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/codepod-io/codepod/internal/config"
 	"github.com/codepod-io/codepod/internal/wsl"
 )
 
@@ -16,12 +17,23 @@ type Manager struct {
 
 // New creates a new storage manager
 func New(platform *wsl.Platform) (*Manager, error) {
-	configDir, err := getConfigDir()
-	if err != nil {
-		return nil, err
+	// Load config to get data directory
+	cfg, err := config.LoadConfig()
+	var basePath string
+
+	if err != nil || cfg.DataDir == "" {
+		// Fallback to old behavior
+		configDir, err := getConfigDir()
+		if err != nil {
+			return nil, err
+		}
+		basePath = filepath.Join(configDir, "workspaces")
+	} else {
+		// Use data_dir from config
+		basePath = filepath.Join(cfg.DataDir, "workspaces")
+		fmt.Printf("[DEBUG] Using data_dir from config: %s\n", cfg.DataDir)
 	}
 
-	basePath := filepath.Join(configDir, "workspaces")
 	if err := os.MkdirAll(basePath, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create storage directory: %w", err)
 	}
