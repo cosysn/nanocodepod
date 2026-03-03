@@ -61,9 +61,11 @@ func runUp(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Detected platform: %s\n", platform.Type)
 
 	// Check Docker availability
-	if !wsl.IsDockerAvailable() {
-		return fmt.Errorf("Docker is not available. Please ensure Docker is running")
+	accessMode := wsl.DetectDockerAccessMode()
+	if accessMode == wsl.DockerAccessNone {
+		return fmt.Errorf("Docker is not available. Please ensure Docker is running\n\nDebug info:\n%s", wsl.GetDockerAccessModeDebug())
 	}
+	fmt.Printf("Docker access mode: %s\n", accessMode)
 
 	// Create workspace manager
 	wsm, err := workspace.New()
