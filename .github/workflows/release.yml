@@ -18,7 +18,7 @@ jobs:
 
       - name: Run tests
         run: |
-          cd codepod && go test ./...
+          cd codepod && go test ./internal/...
 
       - name: Build release binaries
         run: |
