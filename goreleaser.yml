@@ -1,0 +1,28 @@
+# goreleaser configuration (optional, currently using direct build in release.yml)
+# This file can be used if we want to switch to goreleaser in the future
+
+project_name: codepod
+
+builds:
+  - id: codepod
+    dir: ./codepod
+    main: .
+    binary: codepod
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+  - id: agent
+    dir: ./codepod
+    main: ./cmd/agent
+    binary: codepod-agent
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+checksum:
+  name_template: 'checksums.txt'
