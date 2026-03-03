@@ -1,5 +1,5 @@
 # Build script for CodePod on Windows (PowerShell)
-# Requires Go 1.25.4
+# Requires Go (tested with 1.25.4)
 
 param(
     [string]$OutputDir = "."
@@ -16,14 +16,9 @@ try {
     exit 1
 }
 
-# Navigate to codepod directory
+# Navigate to script directory (where build.ps1 is located)
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$codepodDir = Join-Path $scriptDir "codepod"
-
-if (-not (Test-Path $codepodDir)) {
-    Write-Host "Error: Cannot find codepod directory at $codepodDir" -ForegroundColor Red
-    exit 1
-}
+$codepodDir = $scriptDir
 
 Push-Location $codepodDir
 

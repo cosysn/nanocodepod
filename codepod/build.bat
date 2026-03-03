@@ -1,10 +1,8 @@
 @echo off
 REM Build script for CodePod on Windows
-REM Requires Go 1.25.4
+REM Requires Go (tested with 1.25.4)
 
 setlocal
-
-set GO_VERSION=1.25.4
 
 REM Check Go version
 go version >nul 2>&1
@@ -17,10 +15,10 @@ REM Get installed Go version
 for /f "tokens=2" %%i in ('go version') do set INSTALLED_VERSION=%%i
 echo Found Go %INSTALLED_VERSION%
 
-REM Navigate to codepod directory
-cd /d "%~dp0codepod"
+REM Navigate to script directory (where build.bat is located)
+cd /d "%~dp0"
 if errorlevel 1 (
-    echo Error: Cannot find codepod directory
+    echo Error: Cannot find script directory
     exit /b 1
 )
 
