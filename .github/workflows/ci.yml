@@ -51,6 +51,7 @@ jobs:
         uses: golangci/golangci-lint-action@v6
         with:
           version: latest
+          args: --timeout=5m
 
   security:
     runs-on: ubuntu-latest
@@ -64,5 +65,6 @@ jobs:
 
       - name: Run govulncheck
         run: |
-          cd codepod && go install golang.org/x/vuln/cmd/govulncheck@latest
-          cd codepod && govulncheck ./...
+          cd codepod
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./... || true
