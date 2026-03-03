@@ -349,13 +349,15 @@ func WindowsPathToWSLPath(windowsPath string) string {
 	}
 
 	// Handle paths without drive letter (e.g., \data\... or /data/...)
-	// Assume it's a relative path from root
 	// Convert backslashes to forward slashes
 	windowsPath = strings.ReplaceAll(windowsPath, "\\", "/")
 	result := windowsPath
+
+	// Ensure absolute path - add leading slash if not present
 	if !strings.HasPrefix(result, "/") {
 		result = "/" + result
 	}
+
 	fmt.Printf("[DEBUG] WindowsPathToWSLPath output (no drive): %s\n", result)
 	return result
 }
