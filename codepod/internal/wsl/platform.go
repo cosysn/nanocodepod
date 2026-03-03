@@ -333,6 +333,8 @@ func WindowsPathToWSLPath(windowsPath string) string {
 	// C:\path -> /mnt/c/path
 	windowsPath = strings.TrimSpace(windowsPath)
 
+	fmt.Printf("[DEBUG] WindowsPathToWSLPath input: %s\n", windowsPath)
+
 	// Handle drive letter (e.g., C:\ or C:)
 	if len(windowsPath) >= 2 && windowsPath[1] == ':' {
 		drive := strings.ToLower(string(windowsPath[0]))
@@ -341,8 +343,19 @@ func WindowsPathToWSLPath(windowsPath string) string {
 		rest = strings.TrimPrefix(rest, "\\")
 		// Replace backslashes with forward slashes
 		rest = strings.ReplaceAll(rest, "\\", "/")
-		return fmt.Sprintf("/mnt/%s/%s", drive, rest)
+		result := fmt.Sprintf("/mnt/%s/%s", drive, rest)
+		fmt.Printf("[DEBUG] WindowsPathToWSLPath output: %s\n", result)
+		return result
 	}
 
-	return windowsPath
+	// Handle paths without drive letter (e.g., \data\... or /data/...)
+	// Assume it's a relative path from root
+	// Convert backslashes to forward slashes
+	windowsPath = strings.ReplaceAll(windowsPath, "\\", "/")
+	result := windowsPath
+	if !strings.HasPrefix(result, "/") {
+		result = "/" + result
+	}
+	fmt.Printf("[DEBUG] WindowsPathToWSLPath output (no drive): %s\n", result)
+	return result
 }
