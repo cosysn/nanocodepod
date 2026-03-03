@@ -150,7 +150,12 @@ func (m *Manager) Create(name string, opts *CreateOptions) (*types.Workspace, er
 	}
 
 	// Code will be cloned/copied here
-	codePath := filepath.Join(storagePath, "code")
+	var codePath string
+	if runtime.GOOS == "windows" {
+		codePath = strings.Join([]string{storagePath, "code"}, "/")
+	} else {
+		codePath = filepath.Join(storagePath, "code")
+	}
 
 	// Clone repository or copy local directory (on host before container creation)
 	var imageToUse = opts.Image
@@ -165,7 +170,12 @@ func (m *Manager) Create(name string, opts *CreateOptions) (*types.Workspace, er
 
 		// Check for .devcontainer.json and build image if exists
 		if m.devcon != nil {
-			devcontainerPath := filepath.Join(codePath, ".devcontainer.json")
+			var devcontainerPath string
+			if runtime.GOOS == "windows" {
+				devcontainerPath = strings.Join([]string{codePath, ".devcontainer.json"}, "/")
+			} else {
+				devcontainerPath = filepath.Join(codePath, ".devcontainer.json")
+			}
 			if _, err := os.Stat(devcontainerPath); err == nil {
 				// Build custom image from devcontainer
 				imageTag := fmt.Sprintf("codepod-%s:latest", workspaceUUID)
@@ -191,7 +201,12 @@ func (m *Manager) Create(name string, opts *CreateOptions) (*types.Workspace, er
 
 		// Check for .devcontainer.json and build image if exists
 		if m.devcon != nil {
-			devcontainerPath := filepath.Join(codePath, ".devcontainer.json")
+			var devcontainerPath string
+			if runtime.GOOS == "windows" {
+				devcontainerPath = strings.Join([]string{codePath, ".devcontainer.json"}, "/")
+			} else {
+				devcontainerPath = filepath.Join(codePath, ".devcontainer.json")
+			}
 			if _, err := os.Stat(devcontainerPath); err == nil {
 				// Build custom image from devcontainer
 				imageTag := fmt.Sprintf("codepod-%s:latest", workspaceUUID)
