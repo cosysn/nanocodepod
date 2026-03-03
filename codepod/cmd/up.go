@@ -130,7 +130,7 @@ func runUp(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  Port: %d\n", ws.Agent.Port)
 		fmt.Printf("  Username: root\n")
 		fmt.Printf("  Password: codepod\n")
-		fmt.Printf("  gRPC: localhost:%d (for command dispatch)\n\n", ws.Agent.Port)
+		fmt.Printf("  gRPC: localhost:%d (for command dispatch)\n\n", ws.Agent.Port+1)
 	}
 
 	// Auto-connect if requested

@@ -18,6 +18,7 @@ type DockerClient interface {
 	ExecInContainer(name string, cmd []string) error
 	ExecInContainerDetached(name string, cmd []string) error
 	CopyToContainer(containerID, src, dest string) error
+	CommitContainer(containerName, imageName string) error
 	Close() error
 }
 
@@ -293,4 +294,14 @@ type ContainerConfig struct {
 type PortBinding struct {
 	HostIP   string
 	HostPort string
+}
+
+// CommitContainer commits a container to a new image
+func (c *Client) CommitContainer(containerName, imageName string) error {
+	cmd := exec.Command("docker", "commit", "-c", "ENTRYPOINT [\"/usr/local/bin/codepod-agent\"]", containerName, imageName)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to commit container: %w, output: %s", err, string(output))
+	}
+	return nil
 }

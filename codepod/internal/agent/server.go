@@ -153,6 +153,10 @@ func (s *Server) handleSession(channel ssh.Channel, requests <-chan *ssh.Request
 }
 
 func (s *Server) executeCommand(cmd string, channel ssh.Channel) {
+	executeCommand(cmd, channel)
+}
+
+func executeCommand(cmd string, channel ssh.Channel) {
 	command := exec.Command("bash", "-c", cmd)
 	command.Stdout = channel
 	command.Stderr = channel.Stderr()
@@ -168,18 +172,41 @@ func (s *Server) passwordAuth(c ssh.ConnMetadata, pass []byte) (*ssh.Permissions
 	return nil, fmt.Errorf("invalid password")
 }
 
+// handleSessionFunc is a standalone function for handling SSH sessions
+func handleSession(channel ssh.Channel, requests <-chan *ssh.Request) {
+	defer channel.Close()
+
+	for req := range requests {
+		switch req.Type {
+		case "exec":
+			// Execute command
+			cmd := string(req.Payload[4:])
+			executeCommand(cmd, channel)
+			req.Reply(true, nil)
+		default:
+			req.Reply(false, nil)
+		}
+	}
+}
+
 func (s *Server) ensureHostKeys() error {
 	dir := filepath.Dir(s.config.HostKeyPath)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
 
-	if _, err := os.Stat(s.config.HostKeyPath); os.IsNotExist(err) {
-		// Generate new host key
-		cmd := exec.Command("ssh-keygen", "-t", "rsa", "-b", "4096", "-f", s.config.HostKeyPath, "-N", "")
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to generate host key: %w", err)
-		}
+	// Check if host key exists and is valid
+	if info, err := os.Stat(s.config.HostKeyPath); err == nil && info.Size() > 0 {
+		// Host key exists and has content, skip generation
+		return nil
+	}
+
+	// Generate new host key
+	cmd := exec.Command("ssh-keygen", "-t", "rsa", "-b", "4096", "-f", s.config.HostKeyPath, "-N", "")
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to generate host key: %w", err)
 	}
 
 	return nil
@@ -247,6 +274,33 @@ func (g *grpcConnWrapper) Read(b []byte) (int, error) {
 		return n, nil
 	}
 	return g.Conn.Read(b)
+}
+
+// grpcListener wraps a connection to implement net.Listener for gRPC
+type grpcListener struct {
+	conn net.Conn
+	addr net.Addr
+}
+
+func (g *grpcListener) Accept() (net.Conn, error) {
+	// For single connection serving, we return the wrapped connection once
+	conn := g.conn
+	g.conn = nil // Prevent further accepts
+	return conn, nil
+}
+
+func (g *grpcListener) Close() error {
+	if g.conn != nil {
+		return g.conn.Close()
+	}
+	return nil
+}
+
+func (g *grpcListener) Addr() net.Addr {
+	if g.addr == nil {
+		g.addr = g.conn.LocalAddr()
+	}
+	return g.addr
 }
 
 // sshConnWrapper wraps a connection for SSH with buffered peek bytes
@@ -409,23 +463,192 @@ func RunAgent(port int, password string) error {
 	// Handle shutdown signals
 	go handleSignals()
 
-	// Start SSH server
+	// Create server and generate host keys
 	server := NewServer(config)
-	if err := server.Start(); err != nil {
-		return err
+	if err := server.ensureHostKeys(); err != nil {
+		return fmt.Errorf("failed to ensure host keys: %w", err)
 	}
-	fmt.Println("Agent SSH server started")
 
-	// Start gRPC server on same port (protocol detection will route connections)
-	grpcServer := NewGrpcServer(port)
-	if err := grpcServer.Start(); err != nil {
-		fmt.Printf("Warning: failed to start gRPC server: %v\n", err)
+	// Create SSH server configuration
+	sshConfig := &ssh.ServerConfig{
+		PasswordCallback: func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
+			if string(password) == config.Password {
+				return &ssh.Permissions{}, nil
+			}
+			return nil, fmt.Errorf("password rejected")
+		},
+	}
+
+	// Load host key
+	privateKey, err := os.ReadFile(config.HostKeyPath)
+	if err != nil {
+		return fmt.Errorf("failed to read host key: %w", err)
+	}
+
+	signer, err := ssh.ParsePrivateKey(privateKey)
+	if err != nil {
+		return fmt.Errorf("failed to parse host key: %w", err)
+	}
+	sshConfig.AddHostKey(signer)
+
+	// Create single listener for both SSH and gRPC
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	if err != nil {
+		return fmt.Errorf("failed to listen on port %d: %w", port, err)
+	}
+
+	// Create gRPC server on port+1
+	grpcPort := port + 1
+	grpcListener, err := net.Listen("tcp", fmt.Sprintf(":%d", grpcPort))
+	if err != nil {
+		fmt.Printf("Warning: failed to start gRPC listener on port %d: %v\n", grpcPort, err)
 	} else {
-		fmt.Println("Agent gRPC server started")
+		grpcServer := grpc.NewServer()
+		proto.RegisterAgentServer(grpcServer, &grpcHandler{port: port, startTime: time.Now()})
+		fmt.Printf("Agent gRPC server started on port %d\n", grpcPort)
+		go grpcServer.Serve(grpcListener)
 	}
 
-	// Wait forever (agent runs as PID 0/init process)
-	select {}
+	fmt.Println("Agent SSH server started on port", port)
+
+	// Accept SSH connections
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			break
+		}
+
+		go handleSSHConnection(conn, sshConfig, nil)
+	}
+
+	return nil
+}
+
+// singleUseListener wraps a connection to implement net.Listener for a single use
+type singleUseListener struct {
+	conn net.Conn
+}
+
+func (s *singleUseListener) Accept() (net.Conn, error) {
+	if s.conn == nil {
+		return nil, fmt.Errorf("connection already served")
+	}
+	conn := s.conn
+	s.conn = nil
+	return conn, nil
+}
+
+func (s *singleUseListener) Close() error {
+	if s.conn != nil {
+		return s.conn.Close()
+	}
+	return nil
+}
+
+func (s *singleUseListener) Addr() net.Addr {
+	return s.conn.LocalAddr()
+}
+
+// handleMultiplexedConnection detects protocol and routes to SSH or gRPC
+func handleMultiplexedConnection(conn net.Conn, sshConfig *ssh.ServerConfig, grpcServer *grpc.Server) {
+	defer conn.Close()
+
+	// Peek at first bytes to detect protocol
+	peekBuf := make([]byte, len(grpcMagicBytes))
+	n, err := io.ReadFull(conn, peekBuf)
+	if err != nil || n < len(grpcMagicBytes) {
+		// Not enough data, treat as SSH
+		handleSSHConnection(conn, sshConfig, peekBuf)
+		return
+	}
+
+	// Check for gRPC HTTP/2 magic bytes
+	if string(peekBuf) == string(grpcMagicBytes) {
+		// This is a gRPC connection - serve it using the gRPC server
+		fmt.Println("gRPC connection detected on shared port")
+		// Wrap the connection with peek buffer and serve
+		grpcConn := &grpcConnWrapper{conn, peekBuf}
+		listener := &singleUseListener{conn: grpcConn}
+		go func() {
+			grpcServer.Serve(listener)
+		}()
+		return
+	}
+
+	// SSH connection
+	handleSSHConnection(conn, sshConfig, peekBuf)
+}
+
+// handleSSHConnection handles an SSH connection
+func handleSSHConnection(conn net.Conn, config *ssh.ServerConfig, peekBuf []byte) {
+	// If we have peeked bytes, wrap the connection
+	var sshConn net.Conn
+	if len(peekBuf) > 0 {
+		sshConn = &sshConnWrapper{conn, peekBuf}
+	} else {
+		sshConn = conn
+	}
+
+	_, chans, reqs, err := ssh.NewServerConn(sshConn, config)
+	if err != nil {
+		return
+	}
+
+	go ssh.DiscardRequests(reqs)
+
+	for newChannel := range chans {
+		if newChannel.ChannelType() != "session" {
+			newChannel.Reject(ssh.UnknownChannelType, "unknown channel type")
+			continue
+		}
+
+		channel, requests, err := newChannel.Accept()
+		if err != nil {
+			continue
+		}
+
+		go handleSession(channel, requests)
+	}
+}
+
+// grpcHandler implements the gRPC Agent service
+type grpcHandler struct {
+	proto.UnimplementedAgentServer
+	port      int
+	startTime time.Time
+}
+
+// ExecuteCommand executes a command and returns the result
+func (g *grpcHandler) ExecuteCommand(ctx context.Context, req *proto.CommandRequest) (*proto.CommandResponse, error) {
+	cmd := exec.Command("/bin/bash", "-c", req.Command)
+	cmd.Dir = req.WorkingDir
+	cmd.Env = []string{}
+	for k, v := range req.Env {
+		cmd.Env = append(cmd.Env, k+"="+v)
+	}
+
+	output, err := cmd.CombinedOutput()
+	exitCode := 0
+	if err != nil {
+		if exitError, ok := err.(*exec.ExitError); ok {
+			exitCode = exitError.ExitCode()
+		}
+	}
+
+	return &proto.CommandResponse{
+		ExitCode: int32(exitCode),
+		Output:   string(output),
+	}, nil
+}
+
+// GetStatus returns the agent status
+func (g *grpcHandler) GetStatus(ctx context.Context, req *proto.StatusRequest) (*proto.StatusResponse, error) {
+	uptime := int64(time.Since(g.startTime).Seconds())
+	return &proto.StatusResponse{
+		Status:            "running",
+		UptimeSeconds:    uptime,
+		ActiveConnections: 0,
+	}, nil
 }
 
 // reapZombies reaps zombie processes
@@ -436,10 +659,12 @@ func reapZombies() {
 		pid, err := syscall.Wait4(-1, &status, syscall.WNOHANG, nil)
 		if err != nil {
 			// No more children to reap, sleep briefly and try again
+			time.Sleep(100 * time.Millisecond)
+			continue
 		}
 		if pid <= 0 {
-			// Use simple sleep to avoid busy loop
-			fmt.Println("Waiting for child processes...")
+			// No children to reap, sleep briefly
+			time.Sleep(100 * time.Millisecond)
 		}
 	}
 }

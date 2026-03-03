@@ -198,11 +198,13 @@ func (m *Manager) Create(name string, opts *CreateOptions) (*types.Workspace, er
 	}
 
 	// Determine container entrypoint and environment
+	// Note: Agent injection happens in Start() method, not here
+	// Create always uses sleep infinity as entrypoint
 	var containerCmd []string
 	var containerEnv []string
 
 	if opts.InjectAgent {
-		// First create container with sleep infinity, then copy agent and start it
+		// Create with sleep infinity, agent will be started in Start() method
 		containerCmd = []string{"sleep", "infinity"}
 		containerEnv = []string{}
 	} else {
@@ -220,6 +222,8 @@ func (m *Manager) Create(name string, opts *CreateOptions) (*types.Workspace, er
 		Labels:  map[string]string{"codepod.workspace": name},
 		PortBindings: map[string][]docker.PortBinding{
 			"22/tcp": {{HostIP: "0.0.0.0", HostPort: fmt.Sprintf("%d", allocatedPort)}},
+			// gRPC port mapping (container:23 -> host:allocatedPort+1)
+			"23/tcp": {{HostIP: "0.0.0.0", HostPort: fmt.Sprintf("%d", allocatedPort+1)}},
 		},
 		Binds: []string{
 			m.storage.BindWSLStorage(workspaceUUID, "/workspace"),
@@ -321,36 +325,13 @@ func (m *Manager) Start(name string, injectAgent bool) (*types.Workspace, error)
 	useAgent := injectAgent || workspace.Agent.Status == "running"
 
 	exists := m.dockerClient.ContainerExists(workspace.Container.Name)
+
 	if !exists {
-		// Determine container entrypoint based on agent status
-		var containerCmd []string
-		var containerEnv []string
+		// Create container with sleep infinity (default)
+		containerCmd := []string{"sleep", "infinity"}
+		containerEnv := []string{}
 
-		if useAgent {
-			// Use agent as container entrypoint (PID 0)
-			containerCmd = []string{"/usr/local/bin/codepod-agent"}
-			// Read from host environment or use defaults
-			agentPort := workspace.Port
-			if envPort := os.Getenv("CODEPOD_AGENT_PORT"); envPort != "" {
-				if port, err := strconv.Atoi(envPort); err == nil && port > 0 {
-					agentPort = port
-				}
-			}
-			agentPassword := "codepod"
-			if envPass := os.Getenv("CODEPOD_AGENT_PASSWORD"); envPass != "" {
-				agentPassword = envPass
-			}
-			containerEnv = []string{
-				fmt.Sprintf("CODEPOD_AGENT_PORT=%d", agentPort),
-				fmt.Sprintf("CODEPOD_AGENT_PASSWORD=%s", agentPassword),
-			}
-		} else {
-			// Default: use sleep infinity
-			containerCmd = []string{"sleep", "infinity"}
-			containerEnv = []string{}
-		}
-
-		// Recreate container
+		// Create container
 		containerConfig := &docker.ContainerConfig{
 			Name:    workspace.Container.Name,
 			Image:   workspace.Container.Image,
@@ -359,6 +340,8 @@ func (m *Manager) Start(name string, injectAgent bool) (*types.Workspace, error)
 			Labels:  map[string]string{"codepod.workspace": name},
 			PortBindings: map[string][]docker.PortBinding{
 				"22/tcp": {{HostIP: "0.0.0.0", HostPort: fmt.Sprintf("%d", workspace.Port)}},
+				// gRPC port mapping (container:23 -> host:workspace.Port+1)
+				"23/tcp": {{HostIP: "0.0.0.0", HostPort: fmt.Sprintf("%d", workspace.Port+1)}},
 			},
 			Binds: []string{
 				m.storage.BindWSLStorage(storageID, "/workspace"),
@@ -366,47 +349,46 @@ func (m *Manager) Start(name string, injectAgent bool) (*types.Workspace, error)
 			NetworkMode: "bridge",
 			Privileged:  true,
 		}
-		_, err := m.dockerClient.CreateContainer(containerConfig)
-		if err != nil {
+		if _, err := m.dockerClient.CreateContainer(containerConfig); err != nil {
 			return nil, err
 		}
 	}
 
+	// Start the container
 	if err := m.dockerClient.StartContainer(workspace.Container.Name); err != nil {
 		return nil, err
 	}
 
-	// If agent is enabled, start the agent in the container
+	// If agent is enabled, copy agent binary and start it
 	if useAgent {
-		// Check if agent binary exists in container
-		checkCmd := []string{"test", "-f", "/usr/local/bin/codepod-agent"}
-		if err := m.dockerClient.ExecInContainer(workspace.Container.Name, checkCmd); err != nil {
-			// Agent not found, copy it
-			agentPath, err := m.getAgentBinaryPath()
-			if err != nil {
-				return nil, fmt.Errorf("failed to find agent binary: %w", err)
-			}
-			if err := m.dockerClient.CopyToContainer(workspace.Container.Name, agentPath, "/usr/local/bin/codepod-agent"); err != nil {
-				return nil, fmt.Errorf("failed to copy agent to container: %w", err)
-			}
-			// Make executable
-			if err := m.dockerClient.ExecInContainer(workspace.Container.Name, []string{"chmod", "+x", "/usr/local/bin/codepod-agent"}); err != nil {
-				return nil, fmt.Errorf("failed to make agent executable: %w", err)
-			}
-
-			// Install openssh-client for ssh-keygen (needed for host key generation)
-			if err := m.dockerClient.ExecInContainer(workspace.Container.Name, []string{"apt-get", "update"}); err != nil {
-				fmt.Printf("Warning: failed to update apt: %v\n", err)
-			}
-			if err := m.dockerClient.ExecInContainer(workspace.Container.Name, []string{"apt-get", "install", "-y", "openssh-client"}); err != nil {
-				fmt.Printf("Warning: failed to install openssh-client: %v\n", err)
-			}
+		// Always copy the agent binary (to ensure we have the latest version)
+		agentPath, err := m.getAgentBinaryPath()
+		if err != nil {
+			return nil, fmt.Errorf("failed to find agent binary: %w", err)
+		}
+		if err := m.dockerClient.CopyToContainer(workspace.Container.Name, agentPath, "/usr/local/bin/codepod-agent"); err != nil {
+			return nil, fmt.Errorf("failed to copy agent to container: %w", err)
+		}
+		// Make executable
+		if err := m.dockerClient.ExecInContainer(workspace.Container.Name, []string{"chmod", "+x", "/usr/local/bin/codepod-agent"}); err != nil {
+			return nil, fmt.Errorf("failed to make agent executable: %w", err)
 		}
 
-		// Start the agent
-		agentPort := workspace.Port
+		// Install openssh-client for ssh-keygen (needed for host key generation)
+		if err := m.dockerClient.ExecInContainer(workspace.Container.Name, []string{"apt-get", "update"}); err != nil {
+			fmt.Printf("Warning: failed to update apt: %v\n", err)
+		}
+		if err := m.dockerClient.ExecInContainer(workspace.Container.Name, []string{"apt-get", "install", "-y", "openssh-client"}); err != nil {
+			fmt.Printf("Warning: failed to install openssh-client: %v\n", err)
+		}
+
+		// Start the agent as a background process
+		// Note: Inside the container, agent listens on port 22 (SSH port)
+		// The port mapping (container:22 -> host:workspace.Port) is handled by Docker
+		agentPort := 22
 		if envPort := os.Getenv("CODEPOD_AGENT_PORT"); envPort != "" {
-			if port, err := strconv.Atoi(envPort); err == nil && port > 0 {
+			if port, err := strconv.Atoi(envPort); err == nil && port > 0 && port < 1000 {
+				// Only use custom port if it's a low port (for container internal use)
 				agentPort = port
 			}
 		}
@@ -415,8 +397,7 @@ func (m *Manager) Start(name string, injectAgent bool) (*types.Workspace, error)
 			agentPassword = envPass
 		}
 
-		// Kill sleep and start agent (using init mechanism)
-		// Note: This doesn't run as PID 0, but it's sufficient for most use cases
+		// Kill sleep and start agent as background process
 		startAgentCmd := []string{
 			"bash", "-c",
 			fmt.Sprintf("pkill -f 'sleep infinity' || true; nohup /usr/local/bin/codepod-agent --port %d --password %s > /tmp/agent.log 2>&1 &",
