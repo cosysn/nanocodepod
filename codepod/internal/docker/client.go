@@ -5,6 +5,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"github.com/codepod-io/codepod/internal/wsl"
 )
 
 // DockerClient defines the interface for Docker operations
@@ -20,6 +22,10 @@ type DockerClient interface {
 	CopyToContainer(containerID, src, dest string) error
 	CommitContainer(containerName, imageName string) error
 	Close() error
+	ListContainers() ([]Container, error)
+	PullImage(image string) error
+	GetContainerIP(name string) (string, error)
+	GetContainerByName(name string) (*Container, error)
 }
 
 // Client represents a Docker client using CLI
@@ -31,10 +37,36 @@ type Client struct {
 var _ DockerClient = (*Client)(nil)
 
 // New creates a new Docker client
-func New(daemonAddr string) (*Client, error) {
-	return &Client{
-		daemonAddr: daemonAddr,
-	}, nil
+// It detects the platform and Docker availability to choose the appropriate client implementation
+func New(daemonAddr string) (DockerClient, error) {
+	// Detect Docker access mode
+	accessMode := wsl.DetectDockerAccessMode()
+
+	switch accessMode {
+	case wsl.DockerAccessNative:
+		// Use native Docker client
+		return &Client{
+			daemonAddr: daemonAddr,
+		}, nil
+	case wsl.DockerAccessWSL:
+		// Use WSL-based Docker client
+		distro, err := wsl.GetWSLDistributionWithDocker()
+		if err != nil {
+			return nil, fmt.Errorf("Docker not available: %w", err)
+		}
+		client, err := NewWSL(distro)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create WSL Docker client: %w", err)
+		}
+		return client, nil
+	case wsl.DockerAccessNone:
+		return nil, fmt.Errorf("Docker is not available. Please ensure Docker is installed and running")
+	default:
+		// Fallback to native client
+		return &Client{
+			daemonAddr: daemonAddr,
+		}, nil
+	}
 }
 
 // Close closes the Docker client (no-op for CLI-based client)
@@ -302,6 +334,285 @@ func (c *Client) CommitContainer(containerName, imageName string) error {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to commit container: %w, output: %s", err, string(output))
+	}
+	return nil
+}
+
+// WSLDockerClient wraps the Client to execute Docker commands via WSL
+type WSLDockerClient struct {
+	*Client
+	distribution string
+}
+
+// Ensure WSLDockerClient implements DockerClient
+var _ DockerClient = (*WSLDockerClient)(nil)
+
+// NewWSL creates a Docker client that uses WSL to execute Docker commands
+func NewWSL(distribution string) (*WSLDockerClient, error) {
+	client := &Client{
+		daemonAddr: "tcp://localhost:2375",
+	}
+	return &WSLDockerClient{
+		Client:       client,
+		distribution: distribution,
+	}, nil
+}
+
+// runWSLCommand runs a docker command in WSL
+func (c *WSLDockerClient) runWSLCommand(args ...string) ([]byte, error) {
+	dockerArgs := []string{"-d", c.distribution, "--", "docker"}
+	dockerArgs = append(dockerArgs, args...)
+	cmd := exec.Command("wsl.exe", dockerArgs...)
+	return cmd.CombinedOutput()
+}
+
+// runWSLCommandWithIO runs a docker command in WSL with stdout/stderr
+func (c *WSLDockerClient) runWSLCommandWithIO(args ...string) error {
+	dockerArgs := []string{"-d", c.distribution, "--", "docker"}
+	dockerArgs = append(dockerArgs, args...)
+	cmd := exec.Command("wsl.exe", dockerArgs...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	return cmd.Run()
+}
+
+// convertVolumePath converts Windows paths to WSL paths in volume bindings
+func (c *WSLDockerClient) convertVolumePath(bind string) string {
+	// Check if it looks like a Windows path (contains :\ or :)
+	if strings.Contains(bind, ":") {
+		parts := strings.SplitN(bind, ":", 2)
+		if len(parts) == 2 {
+			wslPath := wsl.WindowsPathToWSLPath(parts[0])
+			return wslPath + ":" + parts[1]
+		}
+	}
+	return bind
+}
+
+// ListContainers lists all containers using WSL
+func (c *WSLDockerClient) ListContainers() ([]Container, error) {
+	out, err := c.runWSLCommand("ps", "-a", "--format", "{{.ID}}|{{.Names}}|{{.Status}}|{{.Image}}")
+	if err != nil {
+		return nil, fmt.Errorf("failed to list containers: %w, output: %s", err, string(out))
+	}
+
+	var containers []Container
+	lines := strings.Split(string(out), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.Split(line, "|")
+		if len(parts) >= 4 {
+			containers = append(containers, Container{
+				ID:     parts[0],
+				Names:  parts[1],
+				Status: parts[2],
+				Image:  parts[3],
+			})
+		}
+	}
+	return containers, nil
+}
+
+// PullImage pulls a Docker image using WSL
+func (c *WSLDockerClient) PullImage(image string) error {
+	return c.runWSLCommandWithIO("pull", image)
+}
+
+// CreateContainer creates a new container using WSL
+func (c *WSLDockerClient) CreateContainer(config *ContainerConfig) (string, error) {
+	args := []string{"run", "-d", "--name", config.Name}
+
+	// Add environment variables
+	for _, env := range config.Env {
+		args = append(args, "-e", env)
+	}
+
+	// Add port mappings
+	for containerPort, hostBindings := range config.PortBindings {
+		for _, binding := range hostBindings {
+			if binding.HostIP != "" && binding.HostIP != "0.0.0.0" {
+				args = append(args, "-p", fmt.Sprintf("%s:%s:%s", binding.HostIP, binding.HostPort, containerPort))
+			} else {
+				args = append(args, "-p", fmt.Sprintf("%s:%s", binding.HostPort, containerPort))
+			}
+		}
+	}
+
+	// Add volume bindings with path conversion
+	for _, bind := range config.Binds {
+		convertedBind := c.convertVolumePath(bind)
+		args = append(args, "-v", convertedBind)
+	}
+
+	// Add network
+	if config.NetworkMode != "" {
+		args = append(args, "--network", config.NetworkMode)
+	}
+
+	// Add privileged
+	if config.Privileged {
+		args = append(args, "--privileged")
+	}
+
+	// Add labels
+	for k, v := range config.Labels {
+		args = append(args, "--label", fmt.Sprintf("%s=%s", k, v))
+	}
+
+	// Add image
+	args = append(args, config.Image)
+
+	// Add command
+	if len(config.Cmd) > 0 {
+		args = append(args, config.Cmd...)
+	}
+
+	out, err := c.runWSLCommand(args...)
+	if err != nil {
+		return "", fmt.Errorf("failed to create container: %w, output: %s", err, string(out))
+	}
+
+	return strings.TrimSpace(string(out)), nil
+}
+
+// StartContainer starts a container using WSL
+func (c *WSLDockerClient) StartContainer(name string) error {
+	out, err := c.runWSLCommand("start", name)
+	if err != nil {
+		return fmt.Errorf("failed to start container: %w, output: %s", err, string(out))
+	}
+	return nil
+}
+
+// StopContainer stops a container using WSL
+func (c *WSLDockerClient) StopContainer(name string) error {
+	out, err := c.runWSLCommand("stop", name)
+	if err != nil {
+		return fmt.Errorf("failed to stop container: %w, output: %s", err, string(out))
+	}
+	return nil
+}
+
+// RemoveContainer removes a container using WSL
+func (c *WSLDockerClient) RemoveContainer(name string, force bool) error {
+	args := []string{"rm"}
+	if force {
+		args = append(args, "-f")
+	}
+	args = append(args, name)
+
+	out, err := c.runWSLCommand(args...)
+	if err != nil {
+		return fmt.Errorf("failed to remove container: %w, output: %s", err, string(out))
+	}
+	return nil
+}
+
+// InspectContainer returns container info using WSL
+func (c *WSLDockerClient) InspectContainer(name string) (*ContainerInfo, error) {
+	out, err := c.runWSLCommand("inspect", name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to inspect container: %w, output: %s", err, string(out))
+	}
+
+	info := &ContainerInfo{}
+	lines := strings.Split(string(out), "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "\"Running\":") {
+			info.Running = strings.Contains(line, "true")
+		}
+		if strings.Contains(line, "\"IPAddress\"") {
+			parts := strings.Split(line, "\"")
+			for i, p := range parts {
+				if p == "IPAddress" && i+2 < len(parts) {
+					info.IPAddress = parts[i+2]
+					break
+				}
+			}
+		}
+	}
+
+	return info, nil
+}
+
+// GetContainerIP returns the container's IP address using WSL
+func (c *WSLDockerClient) GetContainerIP(name string) (string, error) {
+	out, err := c.runWSLCommand("inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", name)
+	if err != nil {
+		return "", fmt.Errorf("failed to get container IP: %w, output: %s", err, string(out))
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+// ExecInContainer executes a command in a container using WSL
+func (c *WSLDockerClient) ExecInContainer(name string, cmdArgs []string) error {
+	args := []string{"exec", name}
+	args = append(args, cmdArgs...)
+	return c.runWSLCommandWithIO(args...)
+}
+
+// ExecInContainerDetached executes a command in a container in detached mode using WSL
+func (c *WSLDockerClient) ExecInContainerDetached(name string, cmdArgs []string) error {
+	args := []string{"exec", "-d", name}
+	args = append(args, cmdArgs...)
+
+	dockerArgs := []string{"-d", c.distribution, "--"}
+	dockerArgs = append(dockerArgs, args...)
+	cmd := exec.Command("wsl.exe", dockerArgs...)
+	return cmd.Run()
+}
+
+// CopyToContainer copies a file to a container using WSL
+func (c *WSLDockerClient) CopyToContainer(containerID, src, dest string) error {
+	// Convert source path if it looks like a Windows path
+	convertedSrc := c.convertVolumePath(src)
+	args := []string{"cp", convertedSrc, fmt.Sprintf("%s:%s", containerID, dest)}
+
+	out, err := c.runWSLCommand(args...)
+	if err != nil {
+		return fmt.Errorf("failed to copy to container: %w, output: %s", err, string(out))
+	}
+	return nil
+}
+
+// ContainerExists checks if a container exists using WSL
+func (c *WSLDockerClient) ContainerExists(name string) bool {
+	containers, err := c.ListContainers()
+	if err != nil {
+		return false
+	}
+	for _, c := range containers {
+		if c.Names == name {
+			return true
+		}
+	}
+	return false
+}
+
+// GetContainerByName returns container by name using WSL
+func (c *WSLDockerClient) GetContainerByName(name string) (*Container, error) {
+	containers, err := c.ListContainers()
+	if err != nil {
+		return nil, err
+	}
+	for _, c := range containers {
+		if c.Names == name {
+			return &c, nil
+		}
+	}
+	return nil, fmt.Errorf("container %s not found", name)
+}
+
+// CommitContainer commits a container to a new image using WSL
+func (c *WSLDockerClient) CommitContainer(containerName, imageName string) error {
+	args := []string{"commit", "-c", "ENTRYPOINT [\"/usr/local/bin/codepod-agent\"]", containerName, imageName}
+	out, err := c.runWSLCommand(args...)
+	if err != nil {
+		return fmt.Errorf("failed to commit container: %w, output: %s", err, string(out))
 	}
 	return nil
 }

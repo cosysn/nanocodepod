@@ -71,10 +71,24 @@ func GetDockerHost(platform PlatformType) string {
 	}
 }
 
+// PlatformInterface defines the interface for platform operations
+type PlatformInterface interface {
+	GetType() PlatformType
+	GetDistribution() string
+	GetHostname() (string, error)
+	RunCommand(cmd string) (string, error)
+	FileExists(path string) bool
+	CopyToWSL(src, dest string) error
+	CopyFromWSL(src, dest string) error
+}
+
 // Platform provides platform-specific operations
 type Platform struct {
 	Type PlatformType
 }
+
+// Ensure Platform implements PlatformInterface
+var _ PlatformInterface = (*Platform)(nil)
 
 // NewPlatform creates a new platform handler
 func NewPlatform() (*Platform, error) {
@@ -141,4 +155,123 @@ func (p *Platform) FileExists(path string) bool {
 	default:
 		return false
 	}
+}
+
+// GetDistribution returns the WSL distribution name
+func (p *Platform) GetDistribution() string {
+	distro := os.Getenv("WSL_DISTRO_NAME")
+	if distro == "" {
+		distro = "Ubuntu"
+	}
+	return distro
+}
+
+// CopyToWSL copies a file to WSL
+func (p *Platform) CopyToWSL(src, dest string) error {
+	if p.Type == PlatformWSL {
+		wsl := New(p.GetDistribution())
+		return wsl.CopyToWSL(src, dest)
+	}
+	return nil
+}
+
+// CopyFromWSL copies a file from WSL
+func (p *Platform) CopyFromWSL(src, dest string) error {
+	if p.Type == PlatformWSL {
+		wsl := New(p.GetDistribution())
+		return wsl.CopyFromWSL(src, dest)
+	}
+	return nil
+}
+
+// GetType returns the platform type
+func (p *Platform) GetType() PlatformType {
+	return p.Type
+}
+
+// DockerAccessMode represents how Docker can be accessed
+type DockerAccessMode string
+
+const (
+	DockerAccessNative    DockerAccessMode = "native"   // Docker available directly (Linux or Windows with Docker Desktop)
+	DockerAccessWSL       DockerAccessMode = "wsl"      // Docker only available in WSL
+	DockerAccessNone      DockerAccessMode = "none"     // Docker not available
+)
+
+// DetectDockerAccessMode detects how Docker can be accessed on the current system
+func DetectDockerAccessMode() DockerAccessMode {
+	platform := DetectPlatform()
+
+	switch platform {
+	case PlatformLinux, PlatformWSL:
+		// On Linux or inside WSL, use Docker directly
+		if IsDockerAvailable() {
+			return DockerAccessNative
+		}
+		return DockerAccessNone
+	case PlatformWindows:
+		// On Windows, try native Docker first
+		if IsDockerAvailable() {
+			return DockerAccessNative
+		}
+		// Fall back to checking WSL
+		if IsDockerAvailableInWSL() {
+			return DockerAccessWSL
+		}
+		return DockerAccessNone
+	default:
+		if IsDockerAvailable() {
+			return DockerAccessNative
+		}
+		return DockerAccessNone
+	}
+}
+
+// IsDockerAvailableInWSL checks if Docker is available in any WSL distribution
+func IsDockerAvailableInWSL() bool {
+	// Get default WSL distribution
+	distro := os.Getenv("WSL_DISTRO_NAME")
+	if distro == "" {
+		distro = "Ubuntu"
+	}
+
+	// Try to run docker info in WSL
+	wsl := New(distro)
+	return wsl.IsDockerRunning()
+}
+
+// GetWSLDistributionWithDocker returns the WSL distribution name that has Docker available
+func GetWSLDistributionWithDocker() (string, error) {
+	// Get default WSL distribution first
+	distro := os.Getenv("WSL_DISTRO_NAME")
+	if distro == "" {
+		distro = "Ubuntu"
+	}
+
+	wsl := New(distro)
+	if wsl.IsDockerRunning() {
+		return distro, nil
+	}
+
+	return "", fmt.Errorf("no WSL distribution with Docker found")
+}
+
+// WindowsPathToWSLPath converts a Windows path to a WSL-compatible path
+func WindowsPathToWSLPath(windowsPath string) string {
+	// Convert Windows path to WSL path format
+	// C:\path -> /mnt/c/path
+	windowsPath = strings.TrimSpace(windowsPath)
+
+	// Handle drive letter (e.g., C:\ or C:)
+	if len(windowsPath) >= 2 && windowsPath[1] == ':' {
+		drive := strings.ToLower(string(windowsPath[0]))
+		rest := windowsPath[2:]
+		// Remove leading backslash if present
+		rest = strings.TrimPrefix(rest, "\\")
+		// Replace backslashes with forward slashes
+		rest = strings.ReplaceAll(rest, "\\", "/")
+		return fmt.Sprintf("/mnt/%s/%s", drive, rest)
+	}
+
+	return windowsPath
 }
