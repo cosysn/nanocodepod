@@ -978,14 +978,18 @@ func (m *Manager) findOrCopyAgentToWSL() (string, error) {
 	}
 
 	// Copy to WSL agent directory
-	// First copy to /tmp, then move to final location
-	// WSL can't access Windows paths directly, so we need this workaround
-	tmpAgentPath := "/tmp/codepod-agent"
-	copyCmd := fmt.Sprintf("cp %s %s && chmod +x %s && mv %s %s", localAgentPath, tmpAgentPath, tmpAgentPath, tmpAgentPath, wslAgentPath)
-	fmt.Printf("[DEBUG] Copy command: %s\n", copyCmd)
-	_, err = wslInstance.RunCommand(copyCmd)
+	// Use wsl.CopyToWSL which handles Windows to WSL file copy properly
+	fmt.Printf("[DEBUG] Copying agent from %s to %s\n", localAgentPath, wslAgentPath)
+	err = wslInstance.CopyToWSL(localAgentPath, wslAgentPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to copy agent to WSL: %w", err)
+	}
+
+	// Make executable
+	chmodCmd := fmt.Sprintf("chmod +x %s", wslAgentPath)
+	_, err = wslInstance.RunCommand(chmodCmd)
+	if err != nil {
+		return "", fmt.Errorf("failed to chmod agent: %w", err)
 	}
 
 	return wslAgentPath, nil
