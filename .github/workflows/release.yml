@@ -17,17 +17,20 @@ jobs:
           go-version: '1.24'
 
       - name: Run tests
+        working-directory: codepod
         run: |
-          cd codepod && go test ./internal/...
+          go test ./internal/...
 
       - name: Build release binaries
+        working-directory: codepod
         run: |
-          cd codepod && go build -o codepod .
-          cd codepod && go build -o codepod-agent ./cmd/agent
+          go build -o codepod .
+          go build -o codepod-agent ./cmd/agent
 
       - name: Create checksums
+        working-directory: codepod
         run: |
-          cd codepod && sha256sum codepod codepod-agent > checksums.txt
+          sha256sum codepod codepod-agent > checksums.txt
 
       - name: Delete existing releases
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
@@ -40,11 +43,11 @@ jobs:
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: codepod
         run: |
           gh release create ${{ github.ref_name }} \
             --title "${{ github.ref_name }}" \
             --generate-notes \
-            codepod/codepod \
-            codepod/codepod-agent \
-            codepod/checksums.txt
-          rm -f codepod/codepod codepod/codepod-agent codepod/checksums.txt
+            codepod \
+            codepod-agent \
+            checksums.txt
