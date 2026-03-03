@@ -239,17 +239,7 @@ func GetDockerAccessModeDebug() string {
 
 	// Check WSL Docker
 	if platform == PlatformWindows {
-		distro := os.Getenv("WSL_DISTRO_NAME")
-		if distro == "" {
-			distros, _ := ListDistributions()
-			if len(distros) > 0 {
-				distro = distros[0]
-			} else {
-				distro = "(none found)"
-			}
-		}
-		result += fmt.Sprintf("WSL Distribution: %s\n", distro)
-
+		result += IsDockerAvailableInWSLDebug()
 		wslDocker := IsDockerAvailableInWSL()
 		result += fmt.Sprintf("WSL Docker: %v\n", wslDocker)
 	}
@@ -264,18 +254,41 @@ func IsDockerAvailableInWSL() bool {
 	distro := os.Getenv("WSL_DISTRO_NAME")
 	if distro == "" {
 		// Try to get from wsl.exe -l -q
-		distros, err := ListDistributions()
-		if err == nil && len(distros) > 0 {
+		distros, _ := ListDistributions()
+		if len(distros) > 0 {
 			distro = distros[0]
+		} else {
+			distro = "Ubuntu"
 		}
-	}
-	if distro == "" {
-		distro = "Ubuntu"
 	}
 
 	// Try to run docker info in WSL
-	wsl := New(distro)
-	return wsl.IsDockerRunning()
+	wslInstance := New(distro)
+	_, err := wslInstance.RunCommand("docker info")
+	return err == nil
+}
+
+// IsDockerAvailableInWSLDebug returns detailed debug info for WSL Docker check
+func IsDockerAvailableInWSLDebug() string {
+	result := ""
+	distro := os.Getenv("WSL_DISTRO_NAME")
+	if distro == "" {
+		distros, _ := ListDistributions()
+		result += fmt.Sprintf("WSL_DISTRO_NAME env var: (empty)\n")
+		result += fmt.Sprintf("ListDistributions(): %v\n", distros)
+		if len(distros) > 0 {
+			distro = distros[0]
+		} else {
+			distro = "Ubuntu"
+		}
+	}
+	result += fmt.Sprintf("Testing distribution: %s\n", distro)
+
+	wslInstance := New(distro)
+	output, err := wslInstance.RunCommand("docker info")
+	result += fmt.Sprintf("docker info output: %s\n", output)
+	result += fmt.Sprintf("docker info error: %v\n", err)
+	return result
 }
 
 // GetWSLDistributionWithDocker returns the WSL distribution name that has Docker available
