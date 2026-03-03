@@ -232,6 +232,13 @@ func IsDockerAvailableInWSL() bool {
 	// Get default WSL distribution
 	distro := os.Getenv("WSL_DISTRO_NAME")
 	if distro == "" {
+		// Try to get from wsl.exe -l -q
+		distros, err := ListDistributions()
+		if err == nil && len(distros) > 0 {
+			distro = distros[0]
+		}
+	}
+	if distro == "" {
 		distro = "Ubuntu"
 	}
 
@@ -251,6 +258,17 @@ func GetWSLDistributionWithDocker() (string, error) {
 	wsl := New(distro)
 	if wsl.IsDockerRunning() {
 		return distro, nil
+	}
+
+	// If default doesn't have Docker, try to find one that does
+	distros, err := ListDistributions()
+	if err == nil {
+		for _, d := range distros {
+			wslTest := New(d)
+			if wslTest.IsDockerRunning() {
+				return d, nil
+			}
+		}
 	}
 
 	return "", fmt.Errorf("no WSL distribution with Docker found")
