@@ -599,7 +599,12 @@ func getWorkspacesDir() (string, error) {
 		return workspacesDir, nil
 	}
 	// Use data_dir from config
-	workspacesDir := filepath.Join(cfg.DataDir, "workspaces")
+	var workspacesDir string
+	if runtime.GOOS == "windows" {
+		workspacesDir = strings.Join([]string{cfg.DataDir, "workspaces"}, "/")
+	} else {
+		workspacesDir = filepath.Join(cfg.DataDir, "workspaces")
+	}
 	if runtime.GOOS == "windows" {
 		// Create in WSL
 		distro := wsl.GetWSLDistributionFromConfig()

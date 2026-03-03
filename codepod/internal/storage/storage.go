@@ -39,7 +39,11 @@ func New(platform *wsl.Platform) (*Manager, error) {
 		basePath = filepath.Join(configDir, "workspaces")
 	} else {
 		// Use data_dir from config
-		basePath = filepath.Join(cfg.DataDir, "workspaces")
+		if runtime.GOOS == "windows" {
+			basePath = joinPath(cfg.DataDir, "workspaces")
+		} else {
+			basePath = filepath.Join(cfg.DataDir, "workspaces")
+		}
 		fmt.Printf("[DEBUG] Using data_dir from config: %s\n", cfg.DataDir)
 	}
 
@@ -164,7 +168,7 @@ func (m *Manager) ListWorkspacesStorage() ([]string, error) {
 
 // CreateWSLStorage creates storage in WSL for mounting
 func (m *Manager) CreateWSLStorage(workspaceName string) error {
-	wslPath := filepath.Join("/home", getCurrentUser(), ".codepod", "workspaces", workspaceName)
+	wslPath := joinPath("/home", getCurrentUser(), ".codepod", "workspaces", workspaceName)
 
 	switch m.platform.Type {
 	case wsl.PlatformWSL:
@@ -176,7 +180,6 @@ func (m *Manager) CreateWSLStorage(workspaceName string) error {
 		return os.MkdirAll(localPath, 0755)
 	case wsl.PlatformWindows:
 		// On Windows, create storage in WSL
-		wslPath := filepath.Join("/home", getCurrentUser(), ".codepod", "workspaces", workspaceName)
 		_, err := m.platform.RunCommand(fmt.Sprintf("mkdir -p %s", wslPath))
 		return err
 	default:
@@ -188,12 +191,12 @@ func (m *Manager) CreateWSLStorage(workspaceName string) error {
 func (m *Manager) GetWSLStoragePath(workspaceName string) string {
 	switch m.platform.Type {
 	case wsl.PlatformWSL:
-		return filepath.Join("/home", getCurrentUser(), ".codepod", "workspaces", workspaceName)
+		return joinPath("/home", getCurrentUser(), ".codepod", "workspaces", workspaceName)
 	case wsl.PlatformLinux:
 		return filepath.Join(m.basePath, workspaceName)
 	case wsl.PlatformWindows:
 		// On Windows, storage is in WSL
-		return filepath.Join("/home", getCurrentUser(), ".codepod", "workspaces", workspaceName)
+		return joinPath("/home", getCurrentUser(), ".codepod", "workspaces", workspaceName)
 	default:
 		return filepath.Join(m.basePath, workspaceName)
 	}
