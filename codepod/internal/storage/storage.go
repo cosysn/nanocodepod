@@ -101,6 +101,11 @@ func (m *Manager) CreateWSLStorage(workspaceName string) error {
 		// On Linux, just use local path
 		localPath := filepath.Join(m.basePath, workspaceName)
 		return os.MkdirAll(localPath, 0755)
+	case wsl.PlatformWindows:
+		// On Windows, create storage in WSL
+		wslPath := filepath.Join("/home", getCurrentUser(), ".codepod", "workspaces", workspaceName)
+		_, err := m.platform.RunCommand(fmt.Sprintf("mkdir -p %s", wslPath))
+		return err
 	default:
 		return fmt.Errorf("unsupported platform: %s", m.platform.Type)
 	}
@@ -113,6 +118,9 @@ func (m *Manager) GetWSLStoragePath(workspaceName string) string {
 		return filepath.Join("/home", getCurrentUser(), ".codepod", "workspaces", workspaceName)
 	case wsl.PlatformLinux:
 		return filepath.Join(m.basePath, workspaceName)
+	case wsl.PlatformWindows:
+		// On Windows, storage is in WSL
+		return filepath.Join("/home", getCurrentUser(), ".codepod", "workspaces", workspaceName)
 	default:
 		return filepath.Join(m.basePath, workspaceName)
 	}
