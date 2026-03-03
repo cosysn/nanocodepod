@@ -12,6 +12,8 @@
 *.out
 vendor/
 codepod/codepod
+codepod/codepod-agent
+codepod/tests/codepod
 agent
 
 # IDE
