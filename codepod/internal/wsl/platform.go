@@ -227,6 +227,37 @@ func DetectDockerAccessMode() DockerAccessMode {
 	}
 }
 
+// GetDockerAccessModeDebug returns detailed debug info about Docker detection
+func GetDockerAccessModeDebug() string {
+	platform := DetectPlatform()
+	result := fmt.Sprintf("Platform: %s\n", platform)
+	result += fmt.Sprintf("runtime.GOOS: %s\n", runtime.GOOS)
+
+	// Check native Docker
+	nativeAvailable := IsDockerAvailable()
+	result += fmt.Sprintf("Native Docker (docker info): %v\n", nativeAvailable)
+
+	// Check WSL Docker
+	if platform == PlatformWindows {
+		distro := os.Getenv("WSL_DISTRO_NAME")
+		if distro == "" {
+			distros, _ := ListDistributions()
+			if len(distros) > 0 {
+				distro = distros[0]
+			} else {
+				distro = "(none found)"
+			}
+		}
+		result += fmt.Sprintf("WSL Distribution: %s\n", distro)
+
+		wslDocker := IsDockerAvailableInWSL()
+		result += fmt.Sprintf("WSL Docker: %v\n", wslDocker)
+	}
+
+	result += fmt.Sprintf("Detected Access Mode: %s\n", DetectDockerAccessMode())
+	return result
+}
+
 // IsDockerAvailableInWSL checks if Docker is available in any WSL distribution
 func IsDockerAvailableInWSL() bool {
 	// Get default WSL distribution

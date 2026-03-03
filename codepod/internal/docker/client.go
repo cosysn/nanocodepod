@@ -60,7 +60,7 @@ func New(daemonAddr string) (DockerClient, error) {
 		}
 		return client, nil
 	case wsl.DockerAccessNone:
-		return nil, fmt.Errorf("Docker is not available. Please ensure Docker is installed and running")
+		return nil, fmt.Errorf("Docker is not available. Please ensure Docker is installed and running\n\nDebug info:\n%s", wsl.GetDockerAccessModeDebug())
 	default:
 		// Fallback to native client
 		return &Client{
