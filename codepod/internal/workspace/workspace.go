@@ -29,10 +29,17 @@ type Manager struct {
 	storage      *storage.Manager
 	portPool     *port.Pool
 	devcon       *devcon.Devcon
+	config       *types.Config
 }
 
 // New creates a new workspace manager
 func New() (*Manager, error) {
+	// Load configuration
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config: %w", err)
+	}
+
 	platform, err := wsl.NewPlatform()
 	if err != nil {
 		return nil, err
@@ -67,6 +74,7 @@ func New() (*Manager, error) {
 		storage:      storageManager,
 		portPool:     portPool,
 		devcon:       devconHandler,
+		config:       cfg,
 	}, nil
 }
 
@@ -853,36 +861,42 @@ func (m *Manager) findOrCopyAgentToWSL() (string, error) {
 		}
 	}
 
-	// Target path in WSL
-	wslAgentPath := "/tmp/codepod-agent"
+	// Get data directory from config, default to /root/.codepod
+	dataDir := m.config.DataDir
+	if dataDir == "" {
+		dataDir = "/root/.codepod"
+	}
+
+	// Target path in WSL (agent subdirectory under data dir)
+	wslAgentDir := filepath.ToSlash(filepath.Join(dataDir, "agent"))
+	wslAgentPath := filepath.ToSlash(filepath.Join(wslAgentDir, "codepod-agent"))
 
 	// Copy to WSL
 	distro := wsl.GetWSLDistributionFromConfig()
 	wslInstance := wsl.New(distro)
 
-	// First check if already exists and is up to date
-	existingPath := "/home/" + getCurrentUser() + "/codepod-agent"
-	checkCmd := fmt.Sprintf("test -f %s && echo 'exists' || echo 'not exists'", existingPath)
+	// First check if already exists
+	checkCmd := fmt.Sprintf("test -f %s && echo 'exists' || echo 'not exists'", wslAgentPath)
 	output, _ := wslInstance.RunCommand(checkCmd)
 	if strings.Contains(output, "exists") {
-		return existingPath, nil
+		return wslAgentPath, nil
 	}
 
-	// Copy to WSL /tmp first, then move to home
+	// Create agent directory in WSL
+	mkdirCmd := fmt.Sprintf("mkdir -p %s", wslAgentDir)
+	_, err = wslInstance.RunCommand(mkdirCmd)
+	if err != nil {
+		return "", fmt.Errorf("failed to create agent directory in WSL: %w", err)
+	}
+
+	// Copy to WSL agent directory
 	copyCmd := fmt.Sprintf("cp %s %s && chmod +x %s", localAgentPath, wslAgentPath, wslAgentPath)
 	_, err = wslInstance.RunCommand(copyCmd)
 	if err != nil {
 		return "", fmt.Errorf("failed to copy agent to WSL: %w", err)
 	}
 
-	// Move to home directory
-	moveCmd := fmt.Sprintf("mkdir -p /home/%s && mv %s /home/%s/codepod-agent && chmod +x /home/%s/codepod-agent", getCurrentUser(), wslAgentPath, getCurrentUser(), getCurrentUser())
-	_, err = wslInstance.RunCommand(moveCmd)
-	if err != nil {
-		return "", fmt.Errorf("failed to move agent to home: %w", err)
-	}
-
-	return "/home/" + getCurrentUser() + "/codepod-agent", nil
+	return wslAgentPath, nil
 }
 
 // getCurrentUser returns the current username

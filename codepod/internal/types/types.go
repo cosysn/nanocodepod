@@ -75,6 +75,7 @@ type Config struct {
 	WSL         WSLConfig     `yaml:"wsl"`
 	General     GeneralConfig `yaml:"general"`
 	PortPool    PortPool     `yaml:"port_pool"`
+	DataDir     string       `yaml:"data_dir"` // Data directory for workspaces and agent
 }
 
 // WSLConfig represents WSL configuration

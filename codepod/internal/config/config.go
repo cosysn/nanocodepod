@@ -161,5 +161,6 @@ func GetDefaultConfig() *types.Config {
 			End:   22999,
 			Used:  []int{},
 		},
+		DataDir: "/root/.codepod",
 	}
 }
