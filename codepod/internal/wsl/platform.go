@@ -103,10 +103,7 @@ func (p *Platform) RunCommand(cmd string) (string, error) {
 	switch p.Type {
 	case PlatformWSL:
 		// Try to detect WSL distribution
-		distro := os.Getenv("WSL_DISTRO_NAME")
-		if distro == "" {
-			distro = "Ubuntu"
-		}
+		distro := GetWSLDistributionFromConfig()
 		wsl := New(distro)
 		return wsl.RunCommand(cmd)
 	case PlatformLinux:
@@ -115,6 +112,11 @@ func (p *Platform) RunCommand(cmd string) (string, error) {
 			return "", fmt.Errorf("failed to run command: %w", err)
 		}
 		return strings.TrimSpace(string(out)), nil
+	case PlatformWindows:
+		// On Windows, run command in WSL
+		distro := GetWSLDistributionFromConfig()
+		wsl := New(distro)
+		return wsl.RunCommand(cmd)
 	default:
 		return "", fmt.Errorf("unsupported platform: %s", p.Type)
 	}
@@ -124,10 +126,7 @@ func (p *Platform) RunCommand(cmd string) (string, error) {
 func (p *Platform) GetHostname() (string, error) {
 	switch p.Type {
 	case PlatformWSL:
-		distro := os.Getenv("WSL_DISTRO_NAME")
-		if distro == "" {
-			distro = "Ubuntu"
-		}
+		distro := GetWSLDistributionFromConfig()
 		return distro, nil
 	case PlatformLinux:
 		cmd := exec.Command("hostname")
@@ -136,6 +135,9 @@ func (p *Platform) GetHostname() (string, error) {
 			return "", err
 		}
 		return strings.TrimSpace(string(out)), nil
+	case PlatformWindows:
+		// On Windows, return WSL distribution name
+		return GetWSLDistributionFromConfig(), nil
 	default:
 		return "", fmt.Errorf("unsupported platform")
 	}
@@ -145,15 +147,17 @@ func (p *Platform) GetHostname() (string, error) {
 func (p *Platform) FileExists(path string) bool {
 	switch p.Type {
 	case PlatformWSL:
-		distro := os.Getenv("WSL_DISTRO_NAME")
-		if distro == "" {
-			distro = "Ubuntu"
-		}
+		distro := GetWSLDistributionFromConfig()
 		wsl := New(distro)
 		return wsl.FileExists(path)
 	case PlatformLinux:
 		_, err := os.Stat(path)
 		return err == nil
+	case PlatformWindows:
+		// On Windows, check file in WSL
+		distro := GetWSLDistributionFromConfig()
+		wsl := New(distro)
+		return wsl.FileExists(path)
 	default:
 		return false
 	}
