@@ -18,14 +18,12 @@ jobs:
           go-version: '1.24'
 
       - name: Run unit tests
-        working-directory: codepod
         run: |
-          go test -v -coverprofile=coverage.out ./...
+          cd codepod && go test -v -coverprofile=coverage.out ./...
 
       - name: Check code coverage
-        working-directory: codepod
         run: |
-          COVERAGE=$(go tool cover -func=coverage.out | grep total: | awk '{print $3}' | sed 's/%//')
+          cd codepod && COVERAGE=$(go tool cover -func=coverage.out | grep total: | awk '{print $3}' | sed 's/%//')
           echo "Code coverage: $COVERAGE%"
           if (( $(echo "$COVERAGE < 80" | bc -l) )); then
             echo "Coverage $COVERAGE% is below 80%"
@@ -52,7 +50,6 @@ jobs:
         uses: golangci/golangci-lint-action@v6
         with:
           version: latest
-          working-directory: codepod
 
   security:
     runs-on: ubuntu-latest
@@ -65,7 +62,6 @@ jobs:
           go-version: '1.24'
 
       - name: Run govulncheck
-        working-directory: codepod
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
+          cd codepod && go install golang.org/x/vuln/cmd/govulncheck@latest
+          cd codepod && govulncheck ./...
