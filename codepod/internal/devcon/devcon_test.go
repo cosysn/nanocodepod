@@ -60,7 +60,7 @@ func TestGetDockerfilePath(t *testing.T) {
 	d := &Devcon{}
 
 	path := d.GetDockerfilePath("/workspace/myproject")
-	expected := "/workspace/myproject/Dockerfile"
+	expected := filepath.Join("/workspace/myproject", "Dockerfile")
 
 	if path != expected {
 		t.Errorf("expected %s, got %s", expected, path)

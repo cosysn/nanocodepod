@@ -8,7 +8,7 @@ import (
 func TestNew(t *testing.T) {
 	client, err := New("unix:///var/run/docker.sock")
 	if err != nil {
-		t.Fatalf("failed to create client: %v", err)
+		t.Skipf("Docker is not available: %v", err)
 	}
 
 	if client == nil {
@@ -17,8 +17,11 @@ func TestNew(t *testing.T) {
 }
 
 func TestClient_Close(t *testing.T) {
-	client, _ := New("unix:///var/run/docker.sock")
-	err := client.Close()
+	client, err := New("unix:///var/run/docker.sock")
+	if err != nil {
+		t.Skipf("Docker is not available: %v", err)
+	}
+	err = client.Close()
 	if err != nil {
 		t.Fatalf("failed to close: %v", err)
 	}
