@@ -985,8 +985,9 @@ func (m *Manager) findOrCopyAgentToWSL() (string, error) {
 
 	// Copy to WSL agent directory
 	// Use \\wsl$\<distro>\ path to copy directly from Windows
+	// Windows accepts both forward and backslashes
 	distro = wsl.GetWSLDistributionFromConfig()
-	windowsWSLPath := fmt.Sprintf("\\\\wsl$\\%s%s", distro, wslAgentPath)
+	windowsWSLPath := fmt.Sprintf("wsl$/%s%s", distro, wslAgentPath)
 	fmt.Printf("[DEBUG] Copying agent from %s to %s\n", localAgentPath, windowsWSLPath)
 
 	// Copy file using Windows file system
