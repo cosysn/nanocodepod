@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -780,6 +781,13 @@ func (m *Manager) getAgentBinaryPath() (string, error) {
 		"/tmp/codepod-agent",
 		filepath.Join(os.Getenv("HOME"), "go/bin/codepod-agent"),
 		"/usr/local/bin/codepod-agent",
+		"/usr/bin/codepod-agent",
+		filepath.Join(os.Getenv("HOME"), "codepod-agent"),
+	}
+
+	// On Windows, also check WSL paths
+	if runtime.GOOS == "windows" {
+		locations = append(locations, "/home/"+getCurrentUser()+"/go/bin/codepod-agent")
 	}
 
 	for _, loc := range locations {
@@ -789,4 +797,15 @@ func (m *Manager) getAgentBinaryPath() (string, error) {
 	}
 
 	return "", fmt.Errorf("codepod-agent binary not found")
+}
+
+// getCurrentUser returns the current username
+func getCurrentUser() string {
+	if user := os.Getenv("USER"); user != "" {
+		return user
+	}
+	if user := os.Getenv("USERNAME"); user != "" {
+		return user
+	}
+	return "ubuntu"
 }
