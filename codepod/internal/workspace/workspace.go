@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/codepod-io/codepod/internal/agent"
@@ -787,6 +788,11 @@ func (m *Manager) getAgentBinaryPath() (string, error) {
 
 	// On Windows, also check WSL paths
 	if runtime.GOOS == "windows" {
+		// Try to detect WSL architecture and find matching agent
+		agentPath, err := m.findOrCopyAgentToWSL()
+		if err == nil {
+			return agentPath, nil
+		}
 		locations = append(locations, "/home/"+getCurrentUser()+"/go/bin/codepod-agent")
 	}
 
@@ -797,6 +803,86 @@ func (m *Manager) getAgentBinaryPath() (string, error) {
 	}
 
 	return "", fmt.Errorf("codepod-agent binary not found")
+}
+
+// getWSLArchitecture returns the architecture of the WSL distribution (amd64 or arm64)
+func (m *Manager) getWSLArchitecture() (string, error) {
+	// Run uname -m in WSL to get architecture
+	distro := wsl.GetWSLDistributionFromConfig()
+	wslInstance := wsl.New(distro)
+	output, err := wslInstance.RunCommand("uname -m")
+	if err != nil {
+		return "", fmt.Errorf("failed to detect WSL architecture: %w", err)
+	}
+	output = strings.TrimSpace(output)
+	// Map architecture names
+	if output == "x86_64" || output == "amd64" {
+		return "amd64", nil
+	}
+	if output == "aarch64" || output == "arm64" {
+		return "arm64", nil
+	}
+	return "", fmt.Errorf("unsupported WSL architecture: %s", output)
+}
+
+// findOrCopyAgentToWSL finds the matching Linux agent and copies it to WSL
+func (m *Manager) findOrCopyAgentToWSL() (string, error) {
+	// Get WSL architecture
+	arch, err := m.getWSLArchitecture()
+	if err != nil {
+		return "", err
+	}
+
+	// Determine agent filename based on architecture
+	agentFilename := "codepod-agent-" + arch
+
+	// Get the directory where codepod.exe is running from
+	execPath, err := os.Executable()
+	if err != nil {
+		return "", fmt.Errorf("failed to get executable path: %w", err)
+	}
+	execDir := filepath.Dir(execPath)
+
+	// Check if agent exists in the same directory
+	localAgentPath := filepath.Join(execDir, agentFilename)
+	if _, err := os.Stat(localAgentPath); err != nil {
+		// Try without dash (some builds use codepod-agent-amd64, some use codepod-agentamd64)
+		localAgentPath = filepath.Join(execDir, "codepod-agent-"+arch)
+		if _, err := os.Stat(localAgentPath); err != nil {
+			return "", fmt.Errorf("agent binary %s not found in %s", agentFilename, execDir)
+		}
+	}
+
+	// Target path in WSL
+	wslAgentPath := "/tmp/codepod-agent"
+
+	// Copy to WSL
+	distro := wsl.GetWSLDistributionFromConfig()
+	wslInstance := wsl.New(distro)
+
+	// First check if already exists and is up to date
+	existingPath := "/home/" + getCurrentUser() + "/codepod-agent"
+	checkCmd := fmt.Sprintf("test -f %s && echo 'exists' || echo 'not exists'", existingPath)
+	output, _ := wslInstance.RunCommand(checkCmd)
+	if strings.Contains(output, "exists") {
+		return existingPath, nil
+	}
+
+	// Copy to WSL /tmp first, then move to home
+	copyCmd := fmt.Sprintf("cp %s %s && chmod +x %s", localAgentPath, wslAgentPath, wslAgentPath)
+	_, err = wslInstance.RunCommand(copyCmd)
+	if err != nil {
+		return "", fmt.Errorf("failed to copy agent to WSL: %w", err)
+	}
+
+	// Move to home directory
+	moveCmd := fmt.Sprintf("mkdir -p /home/%s && mv %s /home/%s/codepod-agent && chmod +x /home/%s/codepod-agent", getCurrentUser(), wslAgentPath, getCurrentUser(), getCurrentUser())
+	_, err = wslInstance.RunCommand(moveCmd)
+	if err != nil {
+		return "", fmt.Errorf("failed to move agent to home: %w", err)
+	}
+
+	return "/home/" + getCurrentUser() + "/codepod-agent", nil
 }
 
 // getCurrentUser returns the current username
