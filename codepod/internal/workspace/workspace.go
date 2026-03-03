@@ -638,12 +638,32 @@ func (m *Manager) cloneRepositoryOnHost(repo types.Repository, targetPath string
 		branch = "main"
 	}
 
-	// Create target directory
+	// On Windows, run git clone in WSL
+	if runtime.GOOS == "windows" {
+		distro := wsl.GetWSLDistributionFromConfig()
+		wslInstance := wsl.New(distro)
+
+		// Create target directory in WSL
+		mkdirCmd := fmt.Sprintf("mkdir -p %s", targetPath)
+		_, err := wslInstance.RunCommand(mkdirCmd)
+		if err != nil {
+			return fmt.Errorf("failed to create code directory in WSL: %w", err)
+		}
+
+		// Clone the repository in WSL
+		cloneCmd := fmt.Sprintf("cd %s && git clone -b %s --depth 1 %s .", targetPath, branch, repo.URL)
+		output, err := wslInstance.RunCommand(cloneCmd)
+		if err != nil {
+			return fmt.Errorf("failed to clone repository in WSL: %w, output: %s", err, output)
+		}
+		return nil
+	}
+
+	// On Linux/WSL, use native git
 	if err := os.MkdirAll(targetPath, 0755); err != nil {
 		return fmt.Errorf("failed to create code directory: %w", err)
 	}
 
-	// Clone the repository on host using git command
 	cmd := exec.Command("git", "clone", "-b", branch, "--depth", "1", repo.URL, targetPath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -667,12 +687,32 @@ func (m *Manager) copyLocalDirectory(sourcePath, targetPath string) error {
 		return fmt.Errorf("local path is not a directory: %s", sourcePath)
 	}
 
-	// Create target directory
+	// On Windows, copy to WSL
+	if runtime.GOOS == "windows" {
+		distro := wsl.GetWSLDistributionFromConfig()
+		wslInstance := wsl.New(distro)
+
+		// Create target directory in WSL
+		mkdirCmd := fmt.Sprintf("mkdir -p %s", targetPath)
+		_, err := wslInstance.RunCommand(mkdirCmd)
+		if err != nil {
+			return fmt.Errorf("failed to create code directory in WSL: %w", err)
+		}
+
+		// Copy directory using cp command in WSL
+		cpCmd := fmt.Sprintf("cp -r %s/. %s", sourcePath, targetPath)
+		output, err := wslInstance.RunCommand(cpCmd)
+		if err != nil {
+			return fmt.Errorf("failed to copy local directory to WSL: %w, output: %s", err, output)
+		}
+		return nil
+	}
+
+	// On Linux/WSL, use native cp
 	if err := os.MkdirAll(targetPath, 0755); err != nil {
 		return fmt.Errorf("failed to create code directory: %w", err)
 	}
 
-	// Copy directory using cp command
 	cmd := exec.Command("cp", "-r", sourcePath+"/.", targetPath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
