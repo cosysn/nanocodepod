@@ -5,10 +5,16 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/codepod-io/codepod/internal/config"
 	"github.com/codepod-io/codepod/internal/wsl"
 )
+
+// joinPath joins path elements with forward slash (for WSL)
+func joinPath(elem ...string) string {
+	return strings.Join(elem, "/")
+}
 
 // Manager handles persistent storage for workspaces
 type Manager struct {
@@ -74,7 +80,7 @@ func New(platform *wsl.Platform) (*Manager, error) {
 // CreateWorkspaceStorage creates storage for a new workspace
 func (m *Manager) CreateWorkspaceStorage(workspaceName string) (string, error) {
 	workspacePath := filepath.Join(m.basePath, workspaceName)
-	wslWorkspacePath := filepath.Join(m.wslPath, workspaceName)
+	wslWorkspacePath := joinPath(m.wslPath, workspaceName)
 
 	if runtime.GOOS == "windows" {
 		// Create in WSL
@@ -89,7 +95,7 @@ func (m *Manager) CreateWorkspaceStorage(workspaceName string) (string, error) {
 		// Create subdirectories in WSL
 		subdirs := []string{"data", "home", "keys", "projects"}
 		for _, subdir := range subdirs {
-			subdirPath := filepath.Join(wslWorkspacePath, subdir)
+			subdirPath := joinPath(wslWorkspacePath, subdir)
 			mkdirCmd := fmt.Sprintf("mkdir -p %s", subdirPath)
 			_, err := wslInstance.RunCommand(mkdirCmd)
 			if err != nil {
@@ -119,7 +125,7 @@ func (m *Manager) CreateWorkspaceStorage(workspaceName string) (string, error) {
 // GetWorkspaceStorage returns the storage path for a workspace
 func (m *Manager) GetWorkspaceStorage(workspaceName string) string {
 	if runtime.GOOS == "windows" {
-		return filepath.Join(m.wslPath, workspaceName)
+		return joinPath(m.wslPath, workspaceName)
 	}
 	return filepath.Join(m.basePath, workspaceName)
 }
