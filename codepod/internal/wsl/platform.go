@@ -259,14 +259,17 @@ func GetWSLDistributionFromConfig() string {
 	// Try to load config
 	cfg, err := config.LoadConfig()
 	if err == nil && cfg.WSL.Distribution != "" {
+		fmt.Printf("[DEBUG] Using WSL distribution from config: %s\n", cfg.WSL.Distribution)
 		return cfg.WSL.Distribution
 	}
 	// Fallback to environment variable
 	distro := os.Getenv("WSL_DISTRO_NAME")
 	if distro != "" {
+		fmt.Printf("[DEBUG] Using WSL distribution from env: %s\n", distro)
 		return distro
 	}
 	// Fallback to default
+	fmt.Printf("[DEBUG] Using WSL distribution default: Ubuntu-22.04\n")
 	return "Ubuntu-22.04"
 }
 

@@ -37,7 +37,9 @@ func New() (*Manager, error) {
 	// Load configuration
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		return nil, fmt.Errorf("failed to load config: %w", err)
+		// If config loading fails, use default config but log warning
+		fmt.Printf("[WARN] Failed to load config: %v, using defaults\n", err)
+		cfg = config.GetDefaultConfig()
 	}
 
 	platform, err := wsl.NewPlatform()
