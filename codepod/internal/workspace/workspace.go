@@ -966,17 +966,22 @@ func (m *Manager) findOrCopyAgentToWSL() (string, error) {
 
 	// First check if already exists
 	checkCmd := fmt.Sprintf("test -f %s && echo 'exists' || echo 'not exists'", wslAgentPath)
+	fmt.Printf("[DEBUG] Check agent exists: %s\n", checkCmd)
 	output, _ := wslInstance.RunCommand(checkCmd)
+	fmt.Printf("[DEBUG] Agent exists check output: %s\n", output)
 	if strings.Contains(output, "exists") {
+		fmt.Printf("[DEBUG] Agent already exists, returning\n")
 		return wslAgentPath, nil
 	}
 
 	// Create agent directory in WSL
+	fmt.Printf("[DEBUG] Creating agent directory: %s\n", wslAgentDir)
 	mkdirCmd := fmt.Sprintf("mkdir -p %s", wslAgentDir)
 	_, err = wslInstance.RunCommand(mkdirCmd)
 	if err != nil {
 		return "", fmt.Errorf("failed to create agent directory in WSL: %w", err)
 	}
+	fmt.Printf("[DEBUG] Agent directory created\n")
 
 	// Copy to WSL agent directory
 	// Use \\wsl$\<distro>\ path to copy directly from Windows
@@ -1006,15 +1011,20 @@ func getCurrentUser() string {
 
 // copyFile copies a file from src to dst
 func copyFile(src, dst string) error {
+	fmt.Printf("[DEBUG] copyFile: src=%s, dst=%s\n", src, dst)
+
 	sourceFile, err := os.Open(src)
 	if err != nil {
+		fmt.Printf("[DEBUG] copyFile: failed to open src: %v\n", err)
 		return err
 	}
 	defer sourceFile.Close()
 
 	// Create destination directory if needed
 	dstDir := filepath.Dir(dst)
+	fmt.Printf("[DEBUG] copyFile: dstDir=%s\n", dstDir)
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
+		fmt.Printf("[DEBUG] copyFile: failed to create dstDir: %v\n", err)
 		return err
 	}
 
