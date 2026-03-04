@@ -26,10 +26,13 @@ jobs:
         run: |
           cd codepod && COVERAGE=$(go tool cover -func=coverage.out | grep total: | awk '{print $3}' | sed 's/%//')
           echo "Code coverage: $COVERAGE%"
-          if (( $(echo "$COVERAGE < 20" | bc -l) )); then
+          # Use awk for floating point comparison
+          IS_BELOW=$(echo "$COVERAGE 20" | awk '{if ($1 < $2) print 1; else print 0}')
+          if [ "$IS_BELOW" -eq 1 ]; then
             echo "Coverage $COVERAGE% is below 20%"
             exit 1
           fi
+          echo "Coverage check passed!"
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
