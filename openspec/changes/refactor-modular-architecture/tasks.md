@@ -1,0 +1,35 @@
+# Tasks: Refactor to Modular Architecture
+
+- [x] 1. Create new module structure (cli/, agent/)
+- [x] 2. Create CLI module from codepod/cmd
+  - [x] 2.1 Extract CLI commands to cli/cmd
+  - [x] 2.2 Extract TUI to cli/internal/tui
+  - [x] 2.3 Extract Provider to cli/internal/provider
+  - [x] 2.4 Extract IDE to cli/internal/ide
+  - [x] 2.5 Create cli/go.mod
+- [x] 3. Create Agent module
+  - [x] 3.1 Extract agent code from codepod/internal/agent to agent/
+  - [x] 3.2 Extract proto definitions to proto/
+  - [x] 3.3 Create agent/go.mod
+- [x] 4. Expand Server module
+  - [x] 4.1 Add SQLite storage for workspace state
+  - [x] 4.2 Move workspace management from codepod to server
+  - [x] 4.3 Add workspace API endpoints (HTTP)
+  - [x] 4.4 Move Docker operations to server
+  - [x] 4.5 Move port allocation to server
+  - [x] 4.6 Move storage management to server
+  - [x] 4.7 Move devcontainer support to server
+  - [x] 4.8 Move config management to server
+- [x] 5. Implement Provider mechanism
+  - [x] 5.1 Add Server discovery via Provider command
+  - [x] 5.2 Add Server health check
+  - [x] 5.3 Add Server connection management
+- [x] 6. Implement Agent-Server communication
+  - [x] 6.1 Add agent injection with SERVER_URL env var
+  - [x] 6.2 Add heartbeat mechanism
+  - [x] 6.3 Add gRPC protocol between Agent and Server
+- [x] 7. Update go.work for multi-module coordination
+- [x] 8. Migrate existing workspace data to SQLite
+- [x] 9. Update CI/CD for new module structure
+- [x] 10. Integration testing
+- [x] 11. Update documentation

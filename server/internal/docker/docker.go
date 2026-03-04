@@ -19,6 +19,151 @@ type Container struct {
 	Created string `json:"created"`
 }
 
+// DockerClient defines the interface for Docker operations
+type DockerClient interface {
+	CreateContainer(config *ContainerConfig) (string, error)
+	StartContainer(name string) error
+	StopContainer(name string) error
+	RemoveContainer(name string, force bool) error
+	ListContainers() ([]Container, error)
+	PullImage(image string) error
+}
+
+// ContainerConfig holds container configuration
+type ContainerConfig struct {
+	Name         string
+	Image        string
+	Cmd          []string
+	Env          []string
+	Labels       map[string]string
+	PortBindings map[string][]PortBinding
+	Binds        []string
+	NetworkMode  string
+}
+
+type PortBinding struct {
+	HostIP   string
+	HostPort string
+}
+
+// Client is the Docker CLI client
+type Client struct{}
+
+// New creates a new Docker client
+func New() *Client {
+	return &Client{}
+}
+
+// CreateContainer creates a new container
+func (c *Client) CreateContainer(config *ContainerConfig) (string, error) {
+	args := []string{"run", "-d", "--name", config.Name}
+
+	for _, env := range config.Env {
+		args = append(args, "-e", env)
+	}
+
+	for containerPort, hostBindings := range config.PortBindings {
+		for _, binding := range hostBindings {
+			args = append(args, "-p", fmt.Sprintf("%s:%s", binding.HostPort, containerPort))
+		}
+	}
+
+	for _, bind := range config.Binds {
+		args = append(args, "-v", bind)
+	}
+
+	if config.NetworkMode != "" {
+		args = append(args, "--network", config.NetworkMode)
+	}
+
+	for k, v := range config.Labels {
+		args = append(args, "--label", fmt.Sprintf("%s=%s", k, v))
+	}
+
+	args = append(args, config.Image)
+
+	if len(config.Cmd) > 0 {
+		args = append(args, config.Cmd...)
+	}
+
+	cmd := exec.Command("docker", args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to create container: %w, output: %s", err, string(out))
+	}
+
+	return strings.TrimSpace(string(out)), nil
+}
+
+// StartContainer starts a container
+func (c *Client) StartContainer(name string) error {
+	cmd := exec.Command("docker", "start", name)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to start container: %w", err)
+	}
+	return nil
+}
+
+// StopContainer stops a container
+func (c *Client) StopContainer(name string) error {
+	cmd := exec.Command("docker", "stop", name)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to stop container: %w", err)
+	}
+	return nil
+}
+
+// RemoveContainer removes a container
+func (c *Client) RemoveContainer(name string, force bool) error {
+	args := []string{"rm"}
+	if force {
+		args = append(args, "-f")
+	}
+	args = append(args, name)
+
+	cmd := exec.Command("docker", args...)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to remove container: %w", err)
+	}
+	return nil
+}
+
+// PullImage pulls a Docker image
+func (c *Client) PullImage(image string) error {
+	cmd := exec.Command("docker", "pull", image)
+	cmd.Stdout = log.Writer()
+	cmd.Stderr = log.Writer()
+	return cmd.Run()
+}
+
+// ListContainers lists all containers
+func (c *Client) ListContainers() ([]Container, error) {
+	cmd := exec.Command("docker", "ps", "-a", "--format", "{{.ID}}|{{.Names}}|{{.Status}}|{{.Image}}")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list containers: %w", err)
+	}
+
+	var containers []Container
+	lines := strings.Split(string(out), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		parts := strings.Split(line, "|")
+		if len(parts) >= 4 {
+			containers = append(containers, Container{
+				ID:     parts[0],
+				Names:  parts[1],
+				Status: parts[2],
+				Image:  parts[3],
+			})
+		}
+	}
+	return containers, nil
+}
+
 // ListContainers handles GET /docker/ps
 func ListContainers(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
