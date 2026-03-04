@@ -17,39 +17,22 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.24'
+          go-version-file: codepod/go.mod
 
       - name: Run tests
         working-directory: codepod
         run: |
           go test ./internal/...
 
-      - name: Build release binaries
-        working-directory: codepod
+      - name: Build multi-platform release
         run: |
-          go build -o codepod .
-          go build -o codepod-agent ./cmd/agent
+          COMMIT_ID=$(git rev-parse --short HEAD)
+          ./scripts/build.sh "$COMMIT_ID" "./release"
 
-      - name: Create checksums
-        working-directory: codepod
-        run: |
-          sha256sum codepod codepod-agent > checksums.txt
-
-      - name: Delete existing releases
+      - name: Upload release asset
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release delete ${{ github.ref_name }} --yes || true
-
-      - name: Create GitHub Release
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        working-directory: codepod
-        run: |
-          gh release create ${{ github.ref_name }} \
-            --title "${{ github.ref_name }}" \
-            --generate-notes \
-            codepod \
-            codepod-agent \
-            checksums.txt
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            codepod-*.tar.gz
+          generate_release_notes: true

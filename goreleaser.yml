@@ -1,28 +1,50 @@
-# goreleaser configuration (optional, currently using direct build in release.yml)
-# This file can be used if we want to switch to goreleaser in the future
+# goreleaser configuration for multi-platform build
 
 project_name: codepod
 
 builds:
+  # CLI binary
   - id: codepod
     dir: ./codepod
     main: .
     binary: codepod
     goos:
       - linux
+      - darwin
     goarch:
       - amd64
       - arm64
 
+  # Agent binary
   - id: agent
     dir: ./codepod
     main: ./cmd/agent
     binary: codepod-agent
     goos:
       - linux
+      - darwin
     goarch:
       - amd64
       - arm64
+
+  # Server binary
+  - id: server
+    dir: ./server
+    main: ./cmd/wsl-server
+    binary: codepod-server
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+archive:
+  format: tar.gz
+  format_overrides:
+    - goos: windows
+      format: zip
+  directory: "_{{ .ProjectName }}-{{ .Tag }}"
 
 checksum:
   name_template: 'checksums.txt'
