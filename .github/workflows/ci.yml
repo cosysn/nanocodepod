@@ -15,8 +15,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
-          cache-dependency-path: ./codepod/go.sum
+          go-version-file: go.work
 
       - name: Run unit tests
         run: |
