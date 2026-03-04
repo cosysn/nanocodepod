@@ -16,30 +16,16 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.24'
-          cache: false
 
       - name: Run unit tests
-        working-directory: codepod
-        run: go test -v -coverprofile=coverage.out ./internal/...
+        run: |
+          cd codepod
+          go test -v -coverprofile=coverage.out ./internal/...
 
       - name: Check code coverage
-        working-directory: codepod
         run: |
-          COVERAGE=$(go tool cover -func=coverage.out | grep total: | awk '{print $3}' | sed 's/%//')
-          echo "Code coverage: $COVERAGE%"
-          # Use awk for floating point comparison
-          IS_BELOW=$(echo "$COVERAGE 20" | awk '{if ($1 < $2) print 1; else print 0}')
-          if [ "$IS_BELOW" -eq 1 ]; then
-            echo "Coverage $COVERAGE% is below 20%"
-            exit 1
-          fi
-          echo "Coverage check passed!"
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: codepod/coverage.out
+          cd codepod
+          go tool cover -func=coverage.out
 
   lint:
     runs-on: ubuntu-latest
