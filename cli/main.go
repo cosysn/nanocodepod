@@ -7,18 +7,13 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
+	"github.com/codepod-io/cli/internal/client"
 	"github.com/codepod-io/cli/internal/provider"
+
+	"github.com/codepod-io/cli/cmd"
 )
 
 var version = "dev"
-
-var cfgFile string
-
-var rootCmd = &cobra.Command{
-	Use:   "codepod",
-	Short: "Container development environment management",
-	Long:  `Manage container-based development environments.`,
-}
 
 var (
 	flagImage       string
@@ -31,21 +26,9 @@ var (
 	flagNoAgent     bool
 )
 
-var upCmd = &cobra.Command{
-	Use:   "up [workspace-name]",
-	Short: "Create and start a workspace",
-	Long:  `Create a new workspace and start it. If workspace already exists, just start it.`,
-	Args:  cobra.ExactArgs(1),
-	RunE:  runUp,
-}
-
-func Execute() error {
-	return rootCmd.Execute()
-}
+var upCmd = cmd.NewUpCommand(runUp)
 
 func init() {
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is ~/.codepod/config.yaml)")
-
 	upCmd.Flags().StringVar(&flagImage, "image", "ubuntu:22.04", "Docker image to use")
 	upCmd.Flags().StringVar(&flagRepoURL, "repo", "", "Git repository URL")
 	upCmd.Flags().StringVar(&flagRepoBranch, "branch", "main", "Git repository branch")
@@ -55,7 +38,7 @@ func init() {
 	upCmd.Flags().BoolVar(&flagAgent, "agent", true, "Enable agent injection")
 	upCmd.Flags().BoolVar(&flagNoAgent, "no-agent", false, "Disable agent injection")
 
-	rootCmd.AddCommand(upCmd)
+	cmd.RootCmd.AddCommand(upCmd)
 }
 
 func runUp(cmd *cobra.Command, args []string) error {
@@ -77,16 +60,45 @@ func runUp(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("server is not running. Status: %s", serverInfo.Status)
 	}
 
-	// Create workspace via server
+	// Create client
+	baseURL := serverInfo.URL[:len(serverInfo.URL)-len("/health")]
+	c := client.NewClient(baseURL)
+
+	// Check if workspace already exists
+	existing, err := c.GetWorkspace(name)
+	if err != nil {
+		return fmt.Errorf("failed to check workspace: %w", err)
+	}
+
+	if existing != nil {
+		// Workspace exists, start it
+		fmt.Printf("Workspace %s already exists, starting...\n", name)
+		if err := c.StartWorkspace(name); err != nil {
+			return fmt.Errorf("failed to start workspace: %w", err)
+		}
+		fmt.Printf("Workspace %s started (Port: %d)\n", name, existing.Port)
+		return nil
+	}
+
+	// Create new workspace
 	fmt.Printf("Creating workspace %s...\n", name)
-	fmt.Printf("Server: %s\n", serverInfo.URL)
-	fmt.Printf("Status: running\n")
+	workspace, err := c.CreateWorkspace(client.CreateWorkspaceRequest{
+		Name:    name,
+		Image:   flagImage,
+		RepoURL: flagRepoURL,
+		Branch:  flagRepoBranch,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create workspace: %w", err)
+	}
+
+	fmt.Printf("Workspace %s created (Port: %d)\n", workspace.Name, workspace.Port)
 
 	return nil
 }
 
 func main() {
-	if err := Execute(); err != nil {
+	if err := cmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
