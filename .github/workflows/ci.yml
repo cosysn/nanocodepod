@@ -19,12 +19,13 @@ jobs:
           cache: false
 
       - name: Run unit tests
-        run: |
-          cd codepod && go test -v -coverprofile=coverage.out ./internal/...
+        working-directory: codepod
+        run: go test -v -coverprofile=coverage.out ./internal/...
 
       - name: Check code coverage
+        working-directory: codepod
         run: |
-          cd codepod && COVERAGE=$(go tool cover -func=coverage.out | grep total: | awk '{print $3}' | sed 's/%//')
+          COVERAGE=$(go tool cover -func=coverage.out | grep total: | awk '{print $3}' | sed 's/%//')
           echo "Code coverage: $COVERAGE%"
           # Use awk for floating point comparison
           IS_BELOW=$(echo "$COVERAGE 20" | awk '{if ($1 < $2) print 1; else print 0}')
