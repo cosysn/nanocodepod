@@ -89,7 +89,7 @@ func startHeartbeat(serverURL string, port int) {
 	}
 }
 
-func heartbeat(serverURL, port int, hostname string) {
+func heartbeat(serverURL string, port int, hostname string) {
 	req := HeartbeatRequest{
 		AgentPort: port,
 		Status:    "running",
