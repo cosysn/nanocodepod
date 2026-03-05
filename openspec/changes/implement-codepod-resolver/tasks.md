@@ -197,8 +197,8 @@
 - [x] 22.4 Test RPC request/response
 - [x] 22.5 Test Yamux stream multiplexing
 - [x] 22.6 Test agent recursive routing flow
-- [ ] 22.7 Test CLI auto-start Local Agent
-- [ ] 22.8 Test CLI calls Agent RPC methods
+- [x] 22.7 Test CLI auto-start Local Agent
+- [x] 22.8 Test CLI calls Agent RPC methods
 - [ ] 22.9 Test provider bootstrap flow
 - [ ] 22.10 Test full CLI → Local → Provider → Workspace routing
 - [ ] 22.11 Test full CLI → Local → Workspace → Provider → Container routing
