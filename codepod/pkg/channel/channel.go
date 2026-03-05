@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"strings"
 	"syscall"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -154,6 +155,11 @@ func (l *udsListener) Close() error {
 
 func (l *udsListener) Addr() net.Addr {
 	return l.listener.Addr()
+}
+
+// SetDeadline sets the accept deadline.
+func (l *udsListener) SetDeadline(t time.Time) error {
+	return l.listener.SetDeadline(t)
 }
 
 // Close closes the channel.

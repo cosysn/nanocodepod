@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/codepod-io/codepod/pkg/agent"
+	"github.com/codepod-io/codepod/pkg/channel"
 	"github.com/codepod-io/codepod/pkg/provider"
 	"github.com/codepod-io/codepod/pkg/resolver"
 	"github.com/codepod-io/codepod/pkg/rpc"
@@ -98,9 +99,25 @@ func ensureLocalAgent() (*rpc.RPCClient, error) {
 
 // connectToLocalAgent connects to the Local Agent via UDS.
 func connectToLocalAgent() (*rpc.RPCClient, error) {
-	// This would create a proper RPC client wrapping the UDS connection
-	// For now, return placeholder
-	return nil, fmt.Errorf("RPC client implementation pending")
+	// Create UDS channel
+	udsCh := channel.NewUDSChannel(defaultSocketPath)
+
+	// Dial to the socket
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, err := udsCh.Dial(ctx, defaultSocketPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial local agent: %w", err)
+	}
+
+	// Create RPC client that sends over the connection
+	rpcClient := rpc.NewRPCClient(func(data []byte) error {
+		_, err := conn.Write(data)
+		return err
+	})
+
+	return rpcClient, nil
 }
 
 // startLocalAgent starts the Local Agent process.
