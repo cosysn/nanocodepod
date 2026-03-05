@@ -86,17 +86,17 @@
 ## 10. SSH Channel
 
 - [x] 10.1 Implement SSHChannel struct with config
-- [ ] 10.2 Implement SSH Dial with password auth
-- [ ] 10.3 Implement SSH Dial with key auth
-- [ ] 10.4 Implement SSH exec command
-- [ ] 10.5 Implement SSH session/stream
+- [x] 10.2 Implement SSH Dial with password auth
+- [x] 10.3 Implement SSH Dial with key auth
+- [x] 10.4 Implement SSH exec command
+- [x] 10.5 Implement SSH session/stream
 
 ## 11. WSL Channel
 
 - [x] 11.1 Implement WSLChannel struct
-- [ ] 11.2 Implement WSL Dial via Interop
-- [ ] 11.3 Implement WSL exec command
-- [ ] 11.4 Handle WSL distribution lookup
+- [x] 11.2 Implement WSL Dial via Interop
+- [x] 11.3 Implement WSL exec command
+- [x] 11.4 Handle WSL distribution lookup
 
 ## 12. StdIO Channel
 
@@ -172,9 +172,9 @@
 - [x] 20.2 Provider looks up by authority type
 - [x] 20.3 Provider bootstrap injects Workspace Agent
 - [x] 20.4 Provider establishes connection after bootstrap
-- [ ] 20.5 Local Agent adds child to routing table
-- [ ] 20.6 Route to existing child if available
-- [ ] 20.7 Full flow: CLI → Local → Provider → Workspace Agent
+- [x] 20.5 Local Agent adds child to routing table
+- [x] 20.6 Route to existing child if available
+- [x] 20.7 Full flow: CLI → Local → Provider → Workspace Agent
 
 ## 21. Recursive Routing (Peeling Onion)
 

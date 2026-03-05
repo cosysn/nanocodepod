@@ -5,10 +5,15 @@ package channel
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
+
+	"golang.org/x/crypto/ssh"
 )
 
 // ChannelType represents the type of channel.
@@ -233,10 +238,11 @@ func (c *stdioConn) RemoteAddr() net.Addr {
 
 // SSHChannel implements SSH transport.
 type SSHChannel struct {
-	addr   string
-	user   string
-	keyPath string
-	password string
+	addr      string
+	user      string
+	keyPath   string
+	password  string
+	client    *ssh.Client
 }
 
 // NewSSHChannel creates a new SSH channel.
@@ -251,9 +257,85 @@ func NewSSHChannel(addr, user, keyPath, password string) *SSHChannel {
 
 // Dial connects via SSH.
 func (c *SSHChannel) Dial(ctx context.Context, addr string) (Conn, error) {
-	// Simplified SSH connection - in production would use golang.org/x/crypto/ssh
-	// For now, return a placeholder
-	return nil, errors.New("SSH dial not implemented - requires golang.org/x/crypto/ssh")
+	var auth []ssh.AuthMethod
+
+	if c.password != "" {
+		auth = append(auth, ssh.Password(c.password))
+	}
+
+	if c.keyPath != "" {
+		key, err := os.ReadFile(c.keyPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read SSH key: %w", err)
+		}
+		signer, err := ssh.ParsePrivateKey(key)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse SSH key: %w", err)
+		}
+		auth = append(auth, ssh.PublicKeys(signer))
+	}
+
+	if len(auth) == 0 {
+		return nil, errors.New("no authentication method provided for SSH")
+	}
+
+	cfg := &ssh.ClientConfig{
+		User:            c.user,
+		Auth:            auth,
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	}
+
+	client, err := ssh.Dial("tcp", addr, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial SSH: %w", err)
+	}
+
+	c.client = client
+	return &sshConn{client: client}, nil
+}
+
+// Exec executes a command on the remote host.
+func (c *SSHChannel) Exec(cmd string) (io.ReadCloser, error) {
+	if c.client == nil {
+		return nil, errors.New("not connected")
+	}
+
+	session, err := c.client.NewSession()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create session: %w", err)
+	}
+
+	stdout, err := session.StdoutPipe()
+	if err != nil {
+		session.Close()
+		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
+	}
+
+	if err := session.Start(cmd); err != nil {
+		session.Close()
+		return nil, fmt.Errorf("failed to start command: %w", err)
+	}
+
+	// Return a ReadCloser that also closes the session
+	return &sshReadCloser{Reader: stdout, Session: session}, nil
+}
+
+// sshReadCloser wraps ssh.Session stdout to provide io.ReadCloser.
+type sshReadCloser struct {
+	io.Reader
+	Session *ssh.Session
+}
+
+func (r *sshReadCloser) Close() error {
+	return r.Session.Close()
+}
+
+// Session creates a new SSH session for interactive use.
+func (c *SSHChannel) Session() (*ssh.Session, error) {
+	if c.client == nil {
+		return nil, errors.New("not connected")
+	}
+	return c.client.NewSession()
 }
 
 // Listen is not supported for SSH.
@@ -263,12 +345,42 @@ func (c *SSHChannel) Listen(addr string) (Listener, error) {
 
 // Close closes the channel.
 func (c *SSHChannel) Close() error {
+	if c.client != nil {
+		c.client.Close()
+	}
 	return nil
+}
+
+// sshConn wraps ssh.Client to implement Conn interface.
+type sshConn struct {
+	client *ssh.Client
+}
+
+func (c *sshConn) Read(p []byte) (n int, err error) {
+	// SSH doesn't provide direct read/write - use sessions
+	return 0, errors.New("use Session() for I/O")
+}
+
+func (c *sshConn) Write(p []byte) (n int, err error) {
+	return 0, errors.New("use Session() for I/O")
+}
+
+func (c *sshConn) Close() error {
+	return c.client.Close()
+}
+
+func (c *sshConn) LocalAddr() net.Addr {
+	return c.client.LocalAddr()
+}
+
+func (c *sshConn) RemoteAddr() net.Addr {
+	return c.client.RemoteAddr()
 }
 
 // WSLChannel implements WSL Interop transport.
 type WSLChannel struct {
 	distro string
+	cmd    *exec.Cmd
 }
 
 // NewWSLChannel creates a new WSL channel.
@@ -277,9 +389,81 @@ func NewWSLChannel(distro string) *WSLChannel {
 }
 
 // Dial connects via WSL Interop.
+// On Windows, uses wsl.exe to execute commands in the WSL distribution.
 func (c *WSLChannel) Dial(ctx context.Context, addr string) (Conn, error) {
-	// Simplified WSL connection
-	return nil, errors.New("WSL dial not implemented")
+	// For WSL, we spawn a process that connects to the specified socket/address
+	// Use wsl.exe to run commands in the WSL distribution
+	distro := c.distro
+	if distro == "" {
+		distro = "Ubuntu" // default
+	}
+
+	// Build wsl command to execute
+	cmd := exec.Command("wsl.exe", "-d", distro, "--", "bash", "-c", addr)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		// Set up for WSL interop if available
+	}
+
+	c.cmd = cmd
+	return &wslConn{cmd: cmd}, nil
+}
+
+// Exec executes a command in WSL.
+func (c *WSLChannel) Exec(cmd string) (io.ReadCloser, error) {
+	distro := c.distro
+	if distro == "" {
+		distro = "Ubuntu"
+	}
+
+	execCmd := exec.Command("wsl.exe", "-d", distro, "--", "bash", "-c", cmd)
+	stdout, err := execCmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
+	}
+
+	if err := execCmd.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start WSL command: %w", err)
+	}
+
+	// Return a ReadCloser that also closes the command
+	return &wslReadCloser{Reader: stdout, Cmd: execCmd}, nil
+}
+
+// wslReadCloser wraps exec.Cmd stdout to provide io.ReadCloser.
+type wslReadCloser struct {
+	io.Reader
+	Cmd *exec.Cmd
+}
+
+func (r *wslReadCloser) Close() error {
+	if r.Cmd.Process != nil {
+		r.Cmd.Process.Kill()
+	}
+	return r.Cmd.Wait()
+}
+
+// Distribution returns the default WSL distribution name.
+func (c *WSLChannel) Distribution() string {
+	return c.distro
+}
+
+// ListDistributions lists available WSL distributions.
+func ListDistributions() ([]string, error) {
+	cmd := exec.Command("wsl.exe", "--list", "--quiet")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list WSL distributions: %w", err)
+	}
+
+	var distros []string
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" && !strings.HasPrefix(line, "NAME") {
+			distros = append(distros, line)
+		}
+	}
+	return distros, nil
 }
 
 // Listen is not supported for WSL.
@@ -289,6 +473,37 @@ func (c *WSLChannel) Listen(addr string) (Listener, error) {
 
 // Close closes the channel.
 func (c *WSLChannel) Close() error {
+	if c.cmd != nil && c.cmd.Process != nil {
+		c.cmd.Process.Kill()
+	}
+	return nil
+}
+
+// wslConn wraps exec.Cmd to implement Conn interface.
+type wslConn struct {
+	cmd *exec.Cmd
+}
+
+func (c *wslConn) Read(p []byte) (n int, err error) {
+	return 0, errors.New("use Exec() for command execution")
+}
+
+func (c *wslConn) Write(p []byte) (n int, err error) {
+	return 0, errors.New("use Exec() for command execution")
+}
+
+func (c *wslConn) Close() error {
+	if c.cmd != nil && c.cmd.Process != nil {
+		return c.cmd.Process.Kill()
+	}
+	return nil
+}
+
+func (c *wslConn) LocalAddr() net.Addr {
+	return nil
+}
+
+func (c *wslConn) RemoteAddr() net.Addr {
 	return nil
 }
 

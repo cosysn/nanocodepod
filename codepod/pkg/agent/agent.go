@@ -169,9 +169,17 @@ func (a *Agent) handleLocalService(path string) error {
 
 // forwardToChild forwards a request to an existing child agent.
 func (a *Agent) forwardToChild(ctx context.Context, child *router.RouteNode, path string) error {
-	// This would call the child via RPC
-	// For now, return a placeholder
-	return errors.New("forward not implemented")
+	// Get RPC client from connection
+	client, ok := child.Connection.(*rpc.RPCClient)
+	if !ok {
+		return errors.New("invalid child connection type")
+	}
+
+	// Call child's Route method via RPC
+	_, err := client.Call(ctx, "Agent.Route", map[string]string{
+		"path": path,
+	})
+	return err
 }
 
 // bootstrapAndForward bootstraps a new child agent and forwards the request.
