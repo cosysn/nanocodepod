@@ -208,3 +208,17 @@
 - [x] 23.1 Add package-level documentation
 - [x] 23.2 Export public functions/types
 - [x] 23.3 Verify packages compile without errors
+
+## 24. Single Binary Design
+
+- [x] 24.1 Create embedded agent binaries for all platforms
+  - linux_amd64, linux_arm64, darwin_amd64, darwin_arm64, windows_amd64
+- [x] 24.2 Use go:embed to embed agent binaries into codepod binary
+- [x] 24.3 Add subcommand structure: codepod (CLI), codepod workspace, codepod container, codepod local
+- [x] 24.4 Implement agent role detection from subcommand/flags
+- [x] 24.5 Add embedded binary extraction for bootstrap
+- [x] 24.6 Add architecture detection for target environment
+- [x] 24.7 Select appropriate embedded binary based on target architecture
+- [x] 24.8 Update bootstrapper to use embedded binaries instead of external files
+- [x] 24.9 Update CLI to auto-extract embedded agent on first run
+- [x] 24.10 Test single binary works for all roles

@@ -9,9 +9,13 @@ var cfgFile string
 
 var rootCmd = &cobra.Command{
 	Use:   "codepod",
-	Short: "WSL容器开发环境管理工具",
-	Long:  `在Windows上基于WSL构建容器开发环境，类似devpod但更简单。`,
+	Short: "CodePod - 容器开发环境管理工具",
+	Long:  `CodePod 是一个容器开发环境管理工具，支持本地、WSL、SSH 和 Docker 容器。`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		// Skip config for agent subcommands
+		if cmd.Name() == "workspace" || cmd.Name() == "container" || cmd.Name() == "local" {
+			return
+		}
 		// Initialize config directory
 		if cfgFile != "" {
 			config.SetConfigDir(cfgFile)
@@ -25,4 +29,9 @@ func Execute() error {
 
 func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is ~/.codepod/config.yaml)")
+
+	// Add agent subcommands
+	rootCmd.AddCommand(workspaceCmd)
+	rootCmd.AddCommand(containerCmd)
+	rootCmd.AddCommand(localCmd)
 }

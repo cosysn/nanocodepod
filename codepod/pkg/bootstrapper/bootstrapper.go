@@ -5,9 +5,12 @@ package bootstrapper
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/codepod-io/codepod/pkg/embed"
 )
 
 // TargetType represents the type of bootstrap target.
@@ -47,6 +50,62 @@ func NewBootstrapper(binaryPath string) *Bootstrapper {
 	return &Bootstrapper{binaryPath: binaryPath}
 }
 
+// GetAgentBinaryPath returns the path to the agent binary.
+// If binaryPath is provided, it uses that. Otherwise, it tries to extract
+// from embedded binaries.
+func GetAgentBinaryPath(binaryPath string) (string, error) {
+	return GetAgentBinaryPathForTarget(binaryPath, "", "")
+}
+
+// GetAgentBinaryPathForTarget returns the path to the agent binary for a specific target.
+// If binaryPath is provided, it uses that. Otherwise, it detects the target architecture
+// and extracts the appropriate embedded binary.
+func GetAgentBinaryPathForTarget(binaryPath string, targetType, target string) (string, error) {
+	if binaryPath != "" {
+		return binaryPath, nil
+	}
+
+	// Try to get embedded binary
+	if embed.HasEmbeddedAgents() {
+		// Determine target platform
+		var platform embed.Platform
+		var err error
+
+		if target != "" {
+			// Detect target architecture
+			platform, err = embed.GetPlatformForTarget(context.Background(), targetType, target)
+			if err != nil {
+				// Fall back to current platform
+				platform = embed.GetCurrentPlatform()
+			}
+		} else {
+			// Use current platform
+			platform = embed.GetCurrentPlatform()
+		}
+
+		extractedPath, err := embed.ExtractAgent(platform)
+		if err != nil {
+			return "", fmt.Errorf("failed to extract embedded agent: %w", err)
+		}
+		return extractedPath, nil
+	}
+
+	// Fall back to searching in common locations
+	locations := []string{
+		"./codepod-agent",
+		"/usr/local/bin/codepod-agent",
+		filepath.Join(os.Getenv("HOME"), "bin", "codepod-agent"),
+	}
+
+	for _, loc := range locations {
+		if _, err := os.Stat(loc); err == nil {
+			return loc, nil
+		}
+	}
+
+	return "", errors.New("agent binary not found and no embedded agents available")
+}
+
 // Bootstrap starts an agent in the target environment.
 func (b *Bootstrapper) Bootstrap(ctx context.Context, config *BootstrapConfig) error {
 	// Validate config
@@ -54,13 +113,14 @@ func (b *Bootstrapper) Bootstrap(ctx context.Context, config *BootstrapConfig) e
 		return errors.New("invalid bootstrap config: empty target")
 	}
 
-	// Check binary exists
-	if _, err := os.Stat(config.BinaryPath); err != nil {
-		if os.IsNotExist(err) {
-			return errors.New("agent binary not found: " + config.BinaryPath)
-		}
+	// Get binary path (handles embedded vs external)
+	binaryPath, err := GetAgentBinaryPath(config.BinaryPath)
+	if err != nil {
 		return err
 	}
+
+	// Update config with resolved binary path
+	config.BinaryPath = binaryPath
 
 	// Bootstrap based on target type
 	switch config.TargetType {
