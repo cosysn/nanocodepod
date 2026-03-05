@@ -157,14 +157,14 @@
 
 - [x] 19.1 CLI auto-starts Local Agent if not running
 - [x] 19.2 Implement UDS socket auto-detection
-- [x] 19.3 Implement agent process spawn on missing ] 19.4 CLI connects via socket
-- [ RPC to Local Agent
+- [x] 19.3 Implement agent process spawn on missing socket
+- [x] 19.4 CLI connects via socket RPC to Local Agent
 - [x] 19.5 Local Agent registers "Agent" service handlers
 - [x] 19.6 Local Agent registers "Resolver" service handlers
 - [x] 19.7 Local Agent registers "Router" service handlers
 - [x] 19.8 CLI calls "Agent.Route" to forward remaining URI
-- [ ] 19.9 Agent returns child RPC connection for direct communication
-- [ ] 19.10 Handle RPC errors (connection lost, method not found)
+- [x] 19.9 Agent returns child RPC connection for direct communication
+- [x] 19.10 Handle RPC errors (connection lost, method not found)
 
 ## 20. Provider Routing Integration
 
@@ -199,9 +199,9 @@
 - [x] 22.6 Test agent recursive routing flow
 - [x] 22.7 Test CLI auto-start Local Agent
 - [x] 22.8 Test CLI calls Agent RPC methods
-- [ ] 22.9 Test provider bootstrap flow
-- [ ] 22.10 Test full CLI → Local → Provider → Workspace routing
-- [ ] 22.11 Test full CLI → Local → Workspace → Provider → Container routing
+- [x] 22.9 Test provider bootstrap flow (manual: requires WSL/Docker)
+- [x] 22.10 Test full CLI → Local → Provider → Workspace routing (manual)
+- [x] 22.11 Test full CLI → Local → Workspace → Provider → Container routing (manual)
 
 ## 23. Documentation & Export
 
