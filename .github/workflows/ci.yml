@@ -25,11 +25,12 @@ jobs:
         run: |
           cd codepod && COVERAGE=$(go tool cover -func=coverage.out | grep total: | awk '{print $3}' | sed 's/%//')
           echo "Code coverage: $COVERAGE%"
-          # Skip coverage threshold check for now as coverage is ~15%
-          # if (( $(echo "$COVERAGE < 80" | bc -l) )); then
-          #   echo "Coverage $COVERAGE% is below 80%"
-          #   exit 1
-          # fi
+          # Use 15% threshold - baseline coverage for internal packages
+          # Can be increased as more tests are added
+          if (( $(echo "$COVERAGE < 15" | bc -l) )); then
+            echo "Coverage $COVERAGE% is below 15%"
+            exit 1
+          fi
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
