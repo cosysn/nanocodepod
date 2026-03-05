@@ -178,16 +178,16 @@
 
 ## 21. Recursive Routing (Peeling Onion)
 
-- [ ] 21.1 Local Agent parses dev-container Hex-JSON
-- [ ] 21.2 Local Agent forwards to Workspace Agent
-- [ ] 21.3 Workspace Agent parses dev-container Hex-JSON
-- [ ] 21.4 Workspace Agent determines target container
-- [ ] 21.5 Workspace Agent routes to existing Container Agent
-- [ ] 21.6 Workspace Agent bootstraps new Container Agent if needed
-- [ ] 21.7 Container Agent handles service requests
-- [ ] 21.8 Local Agent handles WSL/SSH provider routing
-- [ ] 21.9 Workspace Agent handles Docker/DevContainer provider
-- [ ] 21.10 Exit condition: path is empty or service prefix
+- [x] 21.1 Local Agent parses dev-container Hex-JSON
+- [x] 21.2 Local Agent forwards to Workspace Agent
+- [x] 21.3 Workspace Agent parses dev-container Hex-JSON
+- [x] 21.4 Workspace Agent determines target container
+- [x] 21.5 Workspace Agent routes to existing Container Agent
+- [x] 21.6 Workspace Agent bootstraps new Container Agent if needed
+- [x] 21.7 Container Agent handles service requests
+- [x] 21.8 Local Agent handles WSL/SSH provider routing
+- [x] 21.9 Workspace Agent handles Docker/DevContainer provider
+- [x] 21.10 Exit condition: path is empty or service prefix
 
 ## 22. Integration Tests
 
