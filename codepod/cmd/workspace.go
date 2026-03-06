@@ -20,9 +20,8 @@ var workspaceCmd = &cobra.Command{
 }
 
 func runWorkspaceAgent(cmd *cobra.Command, args []string) error {
-	socketPath := "/tmp/codepod-workspace.sock"
+	socketPath, _ := cmd.Flags().GetString("socket")
 
-	// Allow socket path override
 	if len(args) > 0 {
 		socketPath = args[0]
 	}
@@ -83,9 +82,8 @@ var containerCmd = &cobra.Command{
 }
 
 func runContainerAgent(cmd *cobra.Command, args []string) error {
-	socketPath := "/tmp/codepod-container.sock"
+	socketPath, _ := cmd.Flags().GetString("socket")
 
-	// Allow socket path override
 	if len(args) > 0 {
 		socketPath = args[0]
 	}
@@ -146,9 +144,8 @@ var localCmd = &cobra.Command{
 }
 
 func runLocalAgent(cmd *cobra.Command, args []string) error {
-	socketPath := "/tmp/codepod.sock"
+	socketPath, _ := cmd.Flags().GetString("socket")
 
-	// Allow socket path override
 	if len(args) > 0 {
 		socketPath = args[0]
 	}

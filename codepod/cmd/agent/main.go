@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/codepod-io/codepod/pkg/agent"
 	"github.com/codepod-io/codepod/pkg/channel"
@@ -95,18 +96,14 @@ func runAgent(agentType router.AgentType, socketPath string) error {
 		}
 
 		// Set accept timeout to allow checking context
-		listener.Close()
+		listener.SetDeadline(time.Now().Add(500 * time.Millisecond))
 
 		conn, err := listener.Accept()
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil
 			}
-			// Recreate listener for next accept
-			listener, err = udsCh.Listen(socketPath)
-			if err != nil {
-				return fmt.Errorf("failed to recreate listener: %w", err)
-			}
+			// Timeout is expected, continue to check context
 			continue
 		}
 

@@ -4,12 +4,16 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
+	"syscall"
 	"time"
 
 	"github.com/codepod-io/codepod/pkg/agent"
+	"github.com/codepod-io/codepod/pkg/bootstrapper"
 	"github.com/codepod-io/codepod/pkg/channel"
 	"github.com/codepod-io/codepod/pkg/provider"
 	"github.com/codepod-io/codepod/pkg/resolver"
@@ -19,7 +23,7 @@ import (
 
 const (
 	defaultSocketPath = "/tmp/codepod.sock"
-	localAgentBinary  = "codepod-agent"
+	defaultPipeName   = "codepod"
 )
 
 // remoteCmd represents the remote connection command
@@ -74,44 +78,68 @@ func runRemote(uri string) error {
 
 // ensureLocalAgent ensures Local Agent is running and returns RPC client.
 func ensureLocalAgent() (*rpc.RPCClient, error) {
-	// Check if socket exists
-	if _, err := os.Stat(defaultSocketPath); err == nil {
-		// Socket exists, try to connect
-		return connectToLocalAgent()
+	socketPath := getSocketPath()
+
+	// Check if agent is running
+	if isAgentRunning(socketPath) {
+		return connectToLocalAgent(socketPath)
 	}
 
-	// Socket doesn't exist, start Local Agent
+	// Not running, start Local Agent
 	fmt.Println("Starting Local Agent...")
 	if err := startLocalAgent(); err != nil {
 		return nil, fmt.Errorf("failed to start local agent: %w", err)
 	}
 
 	// Wait for agent to be ready
-	for i := 0; i < 30; i++ {
+	for i := 0; i < 50; i++ {
 		time.Sleep(100 * time.Millisecond)
-		if _, err := os.Stat(defaultSocketPath); err == nil {
-			return connectToLocalAgent()
+		if isAgentRunning(socketPath) {
+			time.Sleep(200 * time.Millisecond)
+			return connectToLocalAgent(socketPath)
 		}
 	}
 
 	return nil, fmt.Errorf("local agent failed to start")
 }
 
-// connectToLocalAgent connects to the Local Agent via UDS.
-func connectToLocalAgent() (*rpc.RPCClient, error) {
-	// Create UDS channel
-	udsCh := channel.NewUDSChannel(defaultSocketPath)
+// getSocketPath returns the socket path based on OS.
+func getSocketPath() string {
+	if runtime.GOOS == "windows" {
+		return `\\.\pipe\` + defaultPipeName
+	}
+	return defaultSocketPath
+}
 
-	// Dial to the socket
+// isAgentRunning checks if the local agent is running.
+func isAgentRunning(socketPath string) bool {
+	if runtime.GOOS == "windows" {
+		_, err := os.Open(socketPath)
+		return err == nil
+	}
+	_, err := os.Stat(socketPath)
+	return err == nil
+}
+
+// connectToLocalAgent connects to the Local Agent via UDS or Named Pipe.
+func connectToLocalAgent(socketPath string) (*rpc.RPCClient, error) {
+	var conn channel.Conn
+	var err error
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	conn, err := udsCh.Dial(ctx, defaultSocketPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to dial local agent: %w", err)
+	if runtime.GOOS == "windows" {
+		conn, err = connectToNamedPipe(ctx, socketPath)
+	} else {
+		udsCh := channel.NewUDSChannel(socketPath)
+		conn, err = udsCh.Dial(ctx, socketPath)
 	}
 
-	// Create RPC client that sends over the connection
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to local agent: %w", err)
+	}
+
 	rpcClient := rpc.NewRPCClient(func(data []byte) error {
 		_, err := conn.Write(data)
 		return err
@@ -120,38 +148,125 @@ func connectToLocalAgent() (*rpc.RPCClient, error) {
 	return rpcClient, nil
 }
 
-// startLocalAgent starts the Local Agent process.
-func startLocalAgent() error {
-	// Find the agent binary
-	binaryPath, err := findAgentBinary()
-	if err != nil {
-		return err
+// connectToNamedPipe connects to a Windows named pipe.
+func connectToNamedPipe(ctx context.Context, pipePath string) (channel.Conn, error) {
+	for i := 0; i < 10; i++ {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
+		pipe, err := os.OpenFile(pipePath, os.O_RDWR, 0)
+		if err == nil {
+			return &pipeConn{file: pipe}, nil
+		}
+
+		time.Sleep(100 * time.Millisecond)
 	}
 
-	// Start the agent
-	cmd := exec.Command(binaryPath, "--local", "--socket", defaultSocketPath)
+	return nil, fmt.Errorf("failed to connect to named pipe: %s", pipePath)
+}
+
+// pipeConn implements channel.Conn for Windows named pipe.
+type pipeConn struct {
+	file *os.File
+}
+
+func (c *pipeConn) Read(p []byte) (n int, err error)  { return c.file.Read(p) }
+func (c *pipeConn) Write(p []byte) (n int, err error) { return c.file.Write(p) }
+func (c *pipeConn) Close() error                       { return c.file.Close() }
+func (c *pipeConn) LocalAddr() net.Addr               { return nil }
+func (c *pipeConn) RemoteAddr() net.Addr              { return nil }
+
+// startLocalAgent starts the Local Agent process.
+func startLocalAgent() error {
+	socketPath := getSocketPath()
+
+	// Try to use embedded binary via bootstrapper
+	binaryPath, err := bootstrapper.GetAgentBinaryPath("")
+	if err != nil {
+		// Fall back to finding codepod binary and running as subcommand
+		binaryPath, err = findCodepodBinary()
+		if err != nil {
+			return fmt.Errorf("failed to find codepod binary: %w", err)
+		}
+
+		// Run as subcommand: codepod local --socket <path>
+		cmd := exec.Command(binaryPath, "local", "--socket", socketPath)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			Setpgid: true,
+		}
+
+		return cmd.Start()
+	}
+
+	// Use extracted embedded binary directly with --local flag
+	cmd := exec.Command(binaryPath, "--local", "--socket", socketPath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setpgid: true,
+	}
 
 	return cmd.Start()
 }
 
-// findAgentBinary finds the codepod-agent binary.
-func findAgentBinary() (string, error) {
-	// Check current directory
+// findCodepodBinary finds the codepod binary.
+func findCodepodBinary() (string, error) {
 	wd, _ := os.Getwd()
-	localPath := filepath.Join(wd, localAgentBinary)
+	localPath := filepath.Join(wd, "codepod")
+	if runtime.GOOS == "windows" {
+		localPath += ".exe"
+	}
 	if _, err := os.Stat(localPath); err == nil {
 		return localPath, nil
 	}
 
-	// Check PATH
-	path, err := exec.LookPath(localAgentBinary)
+	path, err := exec.LookPath("codepod")
 	if err == nil {
 		return path, nil
 	}
 
-	return "", fmt.Errorf("agent binary not found: %s", localAgentBinary)
+	usrLocalPath := "/usr/local/bin/codepod"
+	if runtime.GOOS == "windows" {
+		usrLocalPath = "C:\\Program Files\\codepod\\codepod.exe"
+	}
+	if _, err := os.Stat(usrLocalPath); err == nil {
+		return usrLocalPath, nil
+	}
+
+	return "", fmt.Errorf("codepod binary not found")
+}
+
+// findAgentBinary finds the agent binary (for provider bootstrap).
+func findAgentBinary() (string, error) {
+	// Try embedded binary first
+	binaryPath, err := bootstrapper.GetAgentBinaryPath("")
+	if err == nil {
+		return binaryPath, nil
+	}
+
+	// Fall back to external binary
+	wd, _ := os.Getwd()
+	localPath := filepath.Join(wd, "codepod-agent")
+	if runtime.GOOS == "windows" {
+		localPath += ".exe"
+	}
+	if _, err := os.Stat(localPath); err == nil {
+		return localPath, nil
+	}
+
+	path, err := exec.LookPath("codepod-agent")
+	if err == nil {
+		return path, nil
+	}
+
+	return "", fmt.Errorf("agent binary not found")
 }
 
 // createLocalAgent creates and configures a Local Agent with providers.

@@ -14,6 +14,7 @@ vendor/
 codepod/codepod
 codepod/codepod-agent
 codepod/tests/codepod
+codepod/dist/
 agent
 
 # IDE
@@ -25,3 +26,4 @@ agent
 # OS
 .DS_Store
 Thumbs.db
+codepod/pkg/embed/agents.zip

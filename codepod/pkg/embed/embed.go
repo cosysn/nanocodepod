@@ -111,7 +111,11 @@ func ExtractAgent(platform Platform) (string, error) {
 		filename += ".exe"
 	}
 
-	tmpPath := filepath.Join(tmpDir, filename)
+	// Use unique filename with PID to avoid "text file busy"
+	tmpPath := filepath.Join(tmpDir, fmt.Sprintf("%s.%d", filename, os.Getpid()))
+
+	// Try to remove existing file first
+	os.Remove(tmpPath)
 
 	if err := os.WriteFile(tmpPath, data, 0755); err != nil {
 		return "", fmt.Errorf("failed to write agent binary: %w", err)

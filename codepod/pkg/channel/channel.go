@@ -71,6 +71,7 @@ type Listener interface {
 	Accept() (Conn, error)
 	Close() error
 	Addr() net.Addr
+	SetDeadline(t time.Time) error
 }
 
 // Channel is the interface for all channel types.
